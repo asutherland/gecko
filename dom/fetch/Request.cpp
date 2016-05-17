@@ -425,6 +425,11 @@ Request::Constructor(const GlobalObject& aGlobal,
   RequestCache cache = aInit.mCache.WasPassed() ?
                        aInit.mCache.Value() : fallbackCache;
   if (cache != RequestCache::EndGuard_) {
+    if (cache == RequestCache::Only_if_cached &&
+        request->Mode() != RequestMode::Same_origin) {
+      aRv.ThrowTypeError<MSG_ONLY_IF_CACHED_WITHOUT_SAME_ORIGIN>();
+      return nullptr;
+    }
     request->ClearCreatedByFetchEvent();
     request->SetCacheMode(cache);
   }
