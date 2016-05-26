@@ -37,6 +37,12 @@
      *   in a Vary header on the response to us.
      * - cache_control: optional string to be passed to the server for it to
      *   quote back in a Cache-Control header on the response to us.
+     * - redirect: optional string "same-origin" or "cross-origin".  If
+     *   provided, the server will issue an absolute redirect to the script on
+     *   the same or a different origin, as appropriate.  The redirected
+     *   location is the script with the redirect parameter removed, so the
+     *   content/state/etc. will be as if you hadn't specified a redirect.  A
+     *   redirect mode of "follow" is used for the fetch request.
      * - request_cache: required array of cache modes to use (via `cache`).
      * - request_headers: optional array of explicit fetch `headers` arguments.
      *   If provided, the server will log an empty dictionary for each request
@@ -164,6 +170,40 @@
         response: ["error"],
         expected_validation_headers: [],
         expected_no_cache_headers: []
+      },
+      {
+        name: 'RequestCache "only-if-cached" (with "same-origin") uses cached same-origin redirects to same-origin content',
+        state: "fresh",
+        request_cache: ["default", "only-if-cached"],
+        redirect: "same-origin",
+        expected_validation_headers: [false, false],
+        expected_no_cache_headers: [false, false],
+      },
+      {
+        name: 'RequestCache "only-if-cached" (with "same-origin") uses cached same-origin redirects to same-origin content',
+        state: "stale",
+        request_cache: ["default", "only-if-cached"],
+        redirect: "same-origin",
+        expected_validation_headers: [false, false],
+        expected_no_cache_headers: [false, false],
+      },
+      {
+        name: 'RequestCache "only-if-cached" (with "same-origin") does not follow redirects across origins and rejects',
+        state: "fresh",
+        request_cache: ["default", "only-if-cached"],
+        redirect: "cross-origin",
+        response: [null, "error"],
+        expected_validation_headers: [false, false],
+        expected_no_cache_headers: [false, false],
+      },
+      {
+        name: 'RequestCache "only-if-cached" (with "same-origin") does not follow redirects across origins and rejects',
+        state: "stale",
+        request_cache: ["default", "only-if-cached"],
+        redirect: "cross-origin",
+        response: [null, "error"],
+        expected_validation_headers: [false, false],
+        expected_no_cache_headers: [false, false],
       },
       {
         name: 'RequestCache "no-store" mode does not check the cache for previously cached content and goes to the network regardless',
@@ -425,6 +465,10 @@
       if ("cache_control" in info) {
         cache_control = "&cache_control=" + info.cache_control;
       }
+      var redirect = "";
+      if ("redirect" in info) {
+        redirect = "&redirect=" + info.redirect;
+      }
       var ignore_request_headers = "";
       if ("request_headers" in info) {
         // Ignore the request headers that we send since they may be synthesized by the test.
@@ -434,7 +478,7 @@
              "&content=" + content +
              "&" + id + "=" + value +
              "&expires=" + dates[info.state] +
-             vary + cache_control + ignore_request_headers;
+             vary + cache_control + redirect + ignore_request_headers;
     }
     function expected_status(type, identifier, init) {
       if (type == "date" &&
@@ -478,12 +522,19 @@
             if ("request_headers" in info) {
               init.headers = info.request_headers[idx];
             }
+            if ("redirect" in info) {
+              init.redirect = "follow";
+            }
             if (init.cache === "only-if-cached") {
               // only-if-cached requires we use same-origin mode.
               init.mode = "same-origin";
             }
             return fetch(url, init)
               .then(function(response) {
+                if ("response" in info && info.response[idx] === "error") {
+                  assert_true(false, "fetch should have been an error");
+                  return;
+                }
                 assert_array_equals([response.status, response.statusText],
                                     expected_status(type, identifier, init));
                 return response.text();
