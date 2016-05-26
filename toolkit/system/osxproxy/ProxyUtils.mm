@@ -144,8 +144,14 @@ IsMatchWildcard(const nsACString& aHost, const nsACString& aOverride)
       tokenStart++;
       // If the character following the '*' is a '.' character then skip
       // it so that "*.foo.com" allows "foo.com".
-      if (override.FindChar('.', tokenStart) == tokenStart)
-        tokenStart++;
+      if (override.FindChar('.', tokenStart) == tokenStart) {
+        nsAutoCString token(Substring(override,
+                                      tokenStart + 1,
+                                      overrideLength - tokenStart - 1));
+        if (host.Equals(token)) {
+          return true;
+        }
+      }
     } else {
       if (tokenEnd == -1)
         tokenEnd = overrideLength; // no '*' char, match rest of string
