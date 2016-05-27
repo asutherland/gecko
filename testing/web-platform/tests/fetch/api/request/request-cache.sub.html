@@ -41,8 +41,7 @@
      *   provided, the server will issue an absolute redirect to the script on
      *   the same or a different origin, as appropriate.  The redirected
      *   location is the script with the redirect parameter removed, so the
-     *   content/state/etc. will be as if you hadn't specified a redirect.  A
-     *   redirect mode of "follow" is used for the fetch request.
+     *   content/state/etc. will be as if you hadn't specified a redirect.
      * - request_cache: required array of cache modes to use (via `cache`).
      * - request_headers: optional array of explicit fetch `headers` arguments.
      *   If provided, the server will log an empty dictionary for each request
@@ -466,19 +465,36 @@
         cache_control = "&cache_control=" + info.cache_control;
       }
       var redirect = "";
-      if ("redirect" in info) {
-        redirect = "&redirect=" + info.redirect;
-      }
+
       var ignore_request_headers = "";
       if ("request_headers" in info) {
         // Ignore the request headers that we send since they may be synthesized by the test.
         ignore_request_headers = "&ignore";
       }
-      return "resources/cache.py?token=" + uuid +
-             "&content=" + content +
-             "&" + id + "=" + value +
-             "&expires=" + dates[info.state] +
-             vary + cache_control + redirect + ignore_request_headers;
+      var url_sans_redirect = "resources/cache.py?token=" + uuid +
+        "&content=" + content +
+        "&" + id + "=" + value +
+        "&expires=" + dates[info.state] +
+        vary + cache_control + ignore_request_headers;
+      // If there's a redirect, the target is the script without any redirect at
+      // either the same domain or a different domain.
+      if ("redirect" in info) {
+        var host;
+        switch (info.redirect) {
+          case "same-origin":
+            host = window.location.host;
+            break;
+          case "cross-origin":
+            host = "{{domains[www]}}:{{ports[http][0]}}";
+            break;
+        }
+        var relpath = window.location.pathname.substring(
+          0, window.location.pathname.lastIndexOf('/') + 1);
+        var redirected_url = "http://" + host + relpath + url_sans_redirect;
+        return url_sans_redirect + "&location=" + encodeURIComponent(redirected_url);
+      } else {
+        return url_sans_redirect;
+      }
     }
     function expected_status(type, identifier, init) {
       if (type == "date" &&
@@ -521,9 +537,6 @@
             var init = {cache: info.request_cache[idx]};
             if ("request_headers" in info) {
               init.headers = info.request_headers[idx];
-            }
-            if ("redirect" in info) {
-              init.redirect = "follow";
             }
             if (init.cache === "only-if-cached") {
               // only-if-cached requires we use same-origin mode.

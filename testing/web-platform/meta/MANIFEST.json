@@ -34645,9 +34645,9 @@
         "url": "/eventsource/shared-worker/eventsource-constructor-non-same-origin.htm"
       },
       {
-        "path": "fetch/api/request/request-cache.html",
+        "path": "fetch/api/request/request-cache.sub.html",
         "timeout": "long",
-        "url": "/fetch/api/request/request-cache.html"
+        "url": "/fetch/api/request/request-cache.sub.html"
       },
       {
         "path": "html/browsers/browsing-the-web/history-traversal/persisted-user-state-restoration/scroll-restoration-fragment-scrolling-cross-origin.html",
