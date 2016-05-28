@@ -427,7 +427,10 @@ Request::Constructor(const GlobalObject& aGlobal,
   if (cache != RequestCache::EndGuard_) {
     if (cache == RequestCache::Only_if_cached &&
         request->Mode() != RequestMode::Same_origin) {
-      aRv.ThrowTypeError<MSG_ONLY_IF_CACHED_WITHOUT_SAME_ORIGIN>();
+      uint32_t t = static_cast<uint32_t>(request->Mode());
+      NS_ConvertASCIItoUTF16 modeString(RequestModeValues::strings[t].value,
+                                        RequestModeValues::strings[t].length);
+      aRv.ThrowTypeError<MSG_ONLY_IF_CACHED_WITHOUT_SAME_ORIGIN>(modeString);
       return nullptr;
     }
     request->ClearCreatedByFetchEvent();
