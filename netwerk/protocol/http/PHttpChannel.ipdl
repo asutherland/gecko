@@ -84,9 +84,17 @@ parent:
   async RemoveCorsPreflightCacheEntry(URIParams uri,
                                       PrincipalInfo requestingPrincipal);
 
+  async SynthesizeResponse(nsHttpResponseHead head,
+                           InputStreamParams body,
+                           nsCString securityInfoSerialization,
+                           nsCString finalURLSpec);
+  async ResetInterception();
+
   async __delete__();
 
 child:
+  async DispatchFetchEvent();
+
   async OnStartRequest(nsresult            channelStatus,
                        nsHttpResponseHead  responseHead,
                        bool                useResponseHead,

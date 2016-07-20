@@ -2,7 +2,6 @@ var origin = 'http://mochi.test:8888';
 
 function fetchXHRWithMethod(name, method, onload, onerror, headers) {
   expectAsyncResult();
-
   onload = onload || function() {
     my_ok(false, "XHR load should not complete successfully");
     finish();

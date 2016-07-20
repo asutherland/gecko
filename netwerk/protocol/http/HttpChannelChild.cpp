@@ -170,6 +170,7 @@ HttpChannelChild::HttpChannelChild()
   , mPostRedirectChannelShouldUpgrade(false)
   , mShouldParentIntercept(false)
   , mSuspendParentAfterSynthesizeResponse(false)
+  , mResponseIsSynthesized(false)
 {
   LOG(("Creating HttpChannelChild @%x\n", this));
 
@@ -297,6 +298,23 @@ HttpChannelChild::AssociateApplicationCache(const nsCString &groupID,
 
   mLoadedFromApplicationCache = true;
   mApplicationCache->InitAsHandle(groupID, clientID);
+}
+
+bool
+HttpChannelChild::RecvDispatchFetchEvent()
+{
+  mResponseCouldBeSynthesized = true;
+
+  nsCOMPtr<nsINetworkInterceptController> controller;
+  GetCallback(controller);
+
+  mInterceptListener = new InterceptStreamListener(this, mListenerContext);
+
+  RefPtr<InterceptedChannelContent> intercepted =
+      new InterceptedChannelContent(this, controller, mInterceptListener, false);
+  intercepted->NotifyController();
+
+  return true;
 }
 
 class StartRequestEvent : public ChannelEvent
@@ -775,8 +793,9 @@ HttpChannelChild::DoOnProgress(nsIRequest* aRequest, int64_t progress, int64_t p
     // OnProgress
     //
     if (progress > 0) {
-      MOZ_ASSERT((progressMax == -1) || (progress <= progressMax),
-                 "unexpected progress values");
+      if ((progressMax != -1) && (progress > progressMax)) {
+        NS_WARNING("unexpected progress values");
+      }
       mProgressSink->OnProgress(aRequest, nullptr, progress, progressMax);
     }
   }
@@ -1018,8 +1037,9 @@ HttpChannelChild::OnProgress(const int64_t& progress,
   if (mProgressSink && NS_SUCCEEDED(mStatus) && mIsPending)
   {
     if (progress > 0) {
-      MOZ_ASSERT((progressMax == -1) || (progress <= progressMax),
-                 "unexpected progress values");
+      if ((progressMax != -1) && (progress > progressMax)) {
+        NS_WARNING("unexpected progress values");
+      }
       mProgressSink->OnProgress(this, nullptr, progress, progressMax);
     }
   }
@@ -1115,9 +1135,9 @@ HttpChannelChild::FailedAsyncOpen(const nsresult& status)
   if (mIPCOpen) {
     PHttpChannelChild::Send__delete__(this);
   }
-  // WARNING:  DO NOT RELY ON |THIS| EXISTING ANY MORE! 
-  // 
-  // NeckoChild::DeallocPHttpChannelChild() may have been called, which deletes 
+  // WARNING:  DO NOT RELY ON |THIS| EXISTING ANY MORE!
+  //
+  // NeckoChild::DeallocPHttpChannelChild() may have been called, which deletes
   // |this| if IPDL holds the last reference.
 }
 
@@ -1250,15 +1270,15 @@ HttpChannelChild::SetupRedirect(nsIURI* uri,
   if (httpChannelChild) {
     bool shouldUpgrade = false;
     auto channelChild = static_cast<HttpChannelChild*>(httpChannelChild.get());
-    if (mShouldInterceptSubsequentRedirect) {
+    if (false && mShouldInterceptSubsequentRedirect) {
       // In the case where there was a synthesized response that caused a redirection,
       // we must force the new channel to intercept the request in the parent before a
       // network transaction is initiated.
       httpChannelChild->ForceIntercepted(false, false);
-    } else if (mRedirectMode == nsIHttpChannelInternal::REDIRECT_MODE_MANUAL &&
+    } else if (false && (mRedirectMode == nsIHttpChannelInternal::REDIRECT_MODE_MANUAL &&
                ((redirectFlags & (nsIChannelEventSink::REDIRECT_TEMPORARY |
                                   nsIChannelEventSink::REDIRECT_PERMANENT)) != 0) &&
-               channelChild->ShouldInterceptURI(uri, shouldUpgrade)) {
+                         channelChild->ShouldInterceptURI(uri, shouldUpgrade))) {
       // In the case where the redirect mode is manual, we need to check whether
       // the post-redirect channel needs to be intercepted.  If that is the
       // case, force the new channel to intercept the request in the parent
@@ -1660,7 +1680,7 @@ HttpChannelChild::OnRedirectVerifyCallback(nsresult result)
 NS_IMETHODIMP
 HttpChannelChild::Cancel(nsresult status)
 {
-  LOG(("HttpChannelChild::Cancel [this=%p]\n", this));
+  LOG(("HttpChannelChild::Cancel [this=%p, status=%x, mCanceled=%d]\n", this, status, mCanceled));
   MOZ_ASSERT(NS_IsMainThread());
 
   if (!mCanceled) {
@@ -1817,8 +1837,8 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
   MOZ_ASSERT_IF(mPostRedirectChannelShouldUpgrade,
                 mPostRedirectChannelShouldIntercept);
   bool shouldUpgrade = mPostRedirectChannelShouldUpgrade;
-  if (mPostRedirectChannelShouldIntercept ||
-      ShouldInterceptURI(mURI, shouldUpgrade)) {
+  if (false && (mPostRedirectChannelShouldIntercept ||
+                ShouldInterceptURI(mURI, shouldUpgrade))) {
     mResponseCouldBeSynthesized = true;
 
     nsCOMPtr<nsINetworkInterceptController> controller;
@@ -1890,6 +1910,7 @@ HttpChannelChild::ContinueAsyncOpen()
   openArgs.loadFlags() = mLoadFlags;
   openArgs.requestHeaders() = mClientSetRequestHeaders;
   mRequestHead.Method(openArgs.requestMethod());
+  openArgs.redirectMode() = mRedirectMode;
 
   nsTArray<mozilla::ipc::FileDescriptor> fds;
   SerializeInputStream(mUploadStream, openArgs.uploadStream(), fds);
@@ -1905,6 +1926,7 @@ HttpChannelChild::ContinueAsyncOpen()
 
   nsCOMPtr<nsISerializable> secInfoSer = do_QueryInterface(mSecurityInfo);
   if (secInfoSer) {
+    MOZ_ASSERT(false);
     NS_SerializeToString(secInfoSer, openArgs.synthesizedSecurityInfoSerialization());
   }
 
@@ -2542,14 +2564,20 @@ HttpChannelChild::ResetInterception()
   }
   mInterceptListener = nullptr;
 
+  printf("resetting interception for %s\n", mSpec.get());
+
   // The chance to intercept any further requests associated with this channel
   // (such as redirects) has passed.
-  mLoadFlags |= LOAD_BYPASS_SERVICE_WORKER;
+  //mLoadFlags |= LOAD_BYPASS_SERVICE_WORKER;
 
   // Continue with the original cross-process request
-  nsresult rv = ContinueAsyncOpen();
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    AsyncAbort(rv);
+  //nsresult rv = ContinueAsyncOpen();
+  //if (NS_WARN_IF(NS_FAILED(rv))) {
+  //  AsyncAbort(rv);
+  //}
+  if (mIPCOpen) {
+    printf("actually resetting\n");
+    SendResetInterception();
   }
 }
 
@@ -2557,7 +2585,7 @@ NS_IMETHODIMP
 HttpChannelChild::GetResponseSynthesized(bool* aSynthesized)
 {
   NS_ENSURE_ARG_POINTER(aSynthesized);
-  *aSynthesized = mSynthesizedResponse;
+  *aSynthesized = mResponseIsSynthesized;
   return NS_OK;
 }
 
@@ -2657,10 +2685,38 @@ HttpChannelChild::RecvIssueDeprecationWarning(const uint32_t& warning,
   return true;
 }
 
+void
+HttpChannelChild::SynthesizeResponse(const nsHttpResponseHead& aSynthesizedResponseHead,
+                                     nsIInputStream* aSynthesizedBody,
+                                     const nsACString& aFinalURLSpec)
+{
+  nsTArray<mozilla::ipc::FileDescriptor> fds;
+  InputStreamParams synthesized;
+  SerializeInputStream(aSynthesizedBody, synthesized, fds);
+  MOZ_ASSERT(fds.Length() == 0);
+
+  nsCString serializedSecurityInfo;
+  nsCOMPtr<nsISerializable> secInfoSer = do_QueryInterface(mSecurityInfo);
+  if (secInfoSer) {
+    NS_SerializeToString(secInfoSer, serializedSecurityInfo);
+  }
+
+  mResponseIsSynthesized = true;
+
+  if (RemoteChannelExists())
+    SendSynthesizeResponse(aSynthesizedResponseHead,
+                           synthesized,
+                           serializedSecurityInfo,
+                           nsCString(aFinalURLSpec));
+}
+
 bool
 HttpChannelChild::ShouldInterceptURI(nsIURI* aURI,
                                      bool& aShouldUpgrade)
 {
+  aShouldUpgrade = false;
+  return false;
+
   bool isHttps = false;
   nsresult rv = aURI->SchemeIs("https", &isHttps);
   NS_ENSURE_SUCCESS(rv, false);

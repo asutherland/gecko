@@ -291,6 +291,13 @@ HttpBaseChannel::GetLoadFlags(nsLoadFlags *aLoadFlags)
 NS_IMETHODIMP
 HttpBaseChannel::SetLoadFlags(nsLoadFlags aLoadFlags)
 {
+  nsCOMPtr<nsISupports> raw = do_QueryInterface((nsIHttpChannel*)this);
+  printf("set load flags for %p, %s\n", raw.get(), aLoadFlags & nsIChannel::LOAD_BYPASS_SERVICE_WORKER ? "true" : "false");
+
+  if ((mLoadFlags & nsIChannel::LOAD_BYPASS_SERVICE_WORKER) && !(aLoadFlags & nsIChannel::LOAD_BYPASS_SERVICE_WORKER)) {
+    MOZ_ASSERT(false);
+  }
+
   bool synthesized = false;
   nsresult rv = GetResponseSynthesized(&synthesized);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2619,10 +2626,15 @@ HttpBaseChannel::BypassServiceWorker() const
 bool
 HttpBaseChannel::ShouldIntercept(nsIURI* aURI)
 {
+  nsCOMPtr<nsIURI> uri = aURI ? aURI : mURI.get();
   nsCOMPtr<nsINetworkInterceptController> controller;
   GetCallback(controller);
   bool shouldIntercept = false;
+  nsAutoCString spec;
+  uri->GetSpec(spec);
+  printf("%s: checking whether to prepare %s\n", XRE_IsParentProcess() ? "parent" : "child", spec.get());
   if (controller && !BypassServiceWorker() && mLoadInfo) {
+    printf("no bypass flag\n");
     nsresult rv = controller->ShouldPrepareForIntercept(aURI ? aURI : mURI.get(),
                                                         nsContentUtils::IsNonSubresourceRequest(this),
                                                         &shouldIntercept);

@@ -14,6 +14,7 @@
 class nsICacheEntry;
 class nsInputStreamPump;
 class nsIStreamListener;
+class nsIStorageStream;
 
 namespace mozilla {
 namespace net {
@@ -100,6 +101,8 @@ class InterceptedChannelContent : public InterceptedChannelBase
 
   // Reader-side of the response body when synthesizing in a child proces
   nsCOMPtr<nsIInputStream> mSynthesizedInput;
+
+  nsCOMPtr<nsIStorageStream> mStorageStream;
 
   // Listener for the synthesized response to fix up the notifications before they reach
   // the actual channel.

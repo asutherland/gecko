@@ -195,6 +195,8 @@ InterceptedChannelChrome::ResetInterception()
   nsCOMPtr<nsIURI> uri;
   mChannel->GetURI(getter_AddRefs(uri));
 
+  printf("redirecting reset channel\n");
+
   nsresult rv = mChannel->StartRedirectChannelToURI(uri, nsIChannelEventSink::REDIRECT_INTERNAL);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -366,9 +368,16 @@ InterceptedChannelContent::InterceptedChannelContent(HttpChannelChild* aChannel,
 void
 InterceptedChannelContent::NotifyController()
 {
-  nsresult rv = NS_NewPipe(getter_AddRefs(mSynthesizedInput),
+  /*nsresult rv = NS_NewPipe(getter_AddRefs(mSynthesizedInput),
                            getter_AddRefs(mResponseBody),
-                           0, UINT32_MAX, true, true);
+                           0, UINT32_MAX, true, true);*/
+  nsresult rv = NS_NewStorageStream(4096, UINT32_MAX, getter_AddRefs(mStorageStream));
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  rv = mStorageStream->GetOutputStream(0, getter_AddRefs(mResponseBody));
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  rv = mStorageStream->NewInputStream(0, getter_AddRefs(mSynthesizedInput));
   NS_ENSURE_SUCCESS_VOID(rv);
 
   DoNotifyController();
@@ -393,6 +402,7 @@ InterceptedChannelContent::ResetInterception()
   mResponseBody->Close();
   mResponseBody = nullptr;
   mSynthesizedInput = nullptr;
+  mStorageStream = nullptr;
 
   mChannel->ResetInterception();
   mReleaseHandle = nullptr;
@@ -436,7 +446,7 @@ InterceptedChannelContent::FinishSynthesizedResponse(const nsACString& aFinalURL
 
   EnsureSynthesizedResponse();
 
-  nsCOMPtr<nsIURI> originalURI;
+  /*nsCOMPtr<nsIURI> originalURI;
   mChannel->GetURI(getter_AddRefs(originalURI));
 
   nsCOMPtr<nsIURI> responseURI;
@@ -449,9 +459,9 @@ InterceptedChannelContent::FinishSynthesizedResponse(const nsACString& aFinalURL
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     responseURI = originalURI;
-  }
+    }*/
 
-  bool equal = false;
+  /*bool equal = false;
   originalURI->Equals(responseURI, &equal);
   if (!equal) {
     mChannel->ForceIntercepted(mSynthesizedInput);
@@ -460,12 +470,21 @@ InterceptedChannelContent::FinishSynthesizedResponse(const nsACString& aFinalURL
     mChannel->OverrideWithSynthesizedResponse(mSynthesizedResponseHead.ref(),
                                               mSynthesizedInput,
                                               mStreamListener);
+                                              }*/
+
+  if (!WillRedirect(mSynthesizedResponseHead.ref())) {
+    mChannel->SetApplyConversion(false);
   }
+ 
+  mChannel->SynthesizeResponse(*mSynthesizedResponseHead.ref(),
+                               mSynthesizedInput,
+                               aFinalURLSpec);
 
   mResponseBody = nullptr;
   mReleaseHandle = nullptr;
   mChannel = nullptr;
   mStreamListener = nullptr;
+  mStorageStream = nullptr;
   return NS_OK;
 }
 

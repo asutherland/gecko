@@ -10,6 +10,7 @@
 #include "mozilla/ipc/FileDescriptorSetParent.h"
 #include "mozilla/net/HttpChannelParent.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/dom/ServiceWorkerManagerParent.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/unused.h"
@@ -43,6 +44,7 @@
 
 using mozilla::BasePrincipal;
 using namespace mozilla::dom;
+using namespace mozilla::dom::workers;
 using namespace mozilla::ipc;
 
 namespace mozilla {
@@ -108,7 +110,7 @@ HttpChannelParent::ActorDestroy(ActorDestroyReason why)
   // If this is an intercepted channel, we need to make sure that any resources are
   // cleaned up to avoid leaks.
   if (mParentListener) {
-    mParentListener->ClearInterceptedChannel();
+    mParentListener->ClearInterceptedChannel(this);
   }
 }
 
@@ -135,7 +137,7 @@ HttpChannelParent::Init(const HttpChannelCreationArgs& aArgs)
                        a.initialRwin(), a.blockAuthPrompt(),
                        a.suspendAfterSynthesizeResponse(),
                        a.allowStaleCacheContent(), a.contentTypeHint(),
-                       a.channelId());
+                       a.channelId(), a.redirectMode());
   }
   case HttpChannelCreationArgs::THttpChannelConnectArgs:
   {
@@ -267,7 +269,8 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
                                  const bool&                aSuspendAfterSynthesizeResponse,
                                  const bool&                aAllowStaleCacheContent,
                                  const nsCString&           aContentTypeHint,
-                                 const nsCString&           aChannelId)
+                                 const nsCString&           aChannelId,
+                                 const uint32_t&            aRedirectMode)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   if (!uri) {
@@ -389,7 +392,10 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
     mChannel->SetUploadStreamHasHeaders(uploadStreamHasHeaders);
   }
 
+  MOZ_ASSERT(aSecurityInfoSerialization.IsEmpty());
+
   if (aSynthesizedResponseHead.type() == OptionalHttpResponseHead::TnsHttpResponseHead) {
+    MOZ_ASSERT(false);
     mParentListener->SetupInterception(aSynthesizedResponseHead.get_nsHttpResponseHead());
     mWillSynthesizeResponse = true;
     mChannel->SetCouldBeSynthesized();
@@ -399,12 +405,12 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
       NS_DeserializeObject(aSecurityInfoSerialization, getter_AddRefs(secInfo));
       mChannel->OverrideSecurityInfo(secInfo);
     }
-  } else {
+  } /*else {
     nsLoadFlags newLoadFlags;
     mChannel->GetLoadFlags(&newLoadFlags);
     newLoadFlags |= nsIChannel::LOAD_BYPASS_SERVICE_WORKER;
     mChannel->SetLoadFlags(newLoadFlags);
-  }
+    }*/
 
   nsCOMPtr<nsISupportsPRUint32> cacheKey =
     do_CreateInstance(NS_SUPPORTS_PRUINT32_CONTRACTID, &rv);
@@ -437,6 +443,7 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
   mChannel->SetAllowAltSvc(allowAltSvc);
   mChannel->SetInitialRwin(aInitialRwin);
   mChannel->SetBlockAuthPrompt(aBlockAuthPrompt);
+  mChannel->SetRedirectMode(aRedirectMode);
 
   nsCOMPtr<nsIApplicationCacheChannel> appCacheChan =
     do_QueryObject(mChannel);
@@ -660,7 +667,13 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
       // A successfully redirected channel must have the LOAD_REPLACE flag.
       MOZ_ASSERT(loadFlags & nsIChannel::LOAD_REPLACE);
       if (loadFlags & nsIChannel::LOAD_REPLACE) {
-        newHttpChannel->SetLoadFlags(loadFlags);
+        nsLoadFlags newLoadFlags = loadFlags;
+        nsLoadFlags oldLoadFlags;
+        newHttpChannel->GetLoadFlags(&oldLoadFlags);
+        if (oldLoadFlags & nsIChannel::LOAD_BYPASS_SERVICE_WORKER) {
+          newLoadFlags |= nsIChannel::LOAD_BYPASS_SERVICE_WORKER;
+        }
+        newHttpChannel->SetLoadFlags(newLoadFlags);
       }
 
       if (aCorsPreflightArgs.type() == OptionalCorsPreflightArgs::TCorsPreflightArgs) {
@@ -968,6 +981,10 @@ HttpChannelParent::ResponseSynthesized()
 
   mWillSynthesizeResponse = false;
 
+  /*bool synthesized = false;
+  mChannel->GetResponseSynthesized(&synthesized);
+  MOZ_ASSERT(synthesized);*/
+
   MaybeFlushPendingDiversion();
 }
 
@@ -986,6 +1003,23 @@ HttpChannelParent::RecvRemoveCorsPreflightCacheEntry(const URIParams& uri,
   }
   nsCORSListenerProxy::RemoveFromCorsPreflightCache(deserializedURI,
                                                     principal);
+  return true;
+}
+
+bool
+HttpChannelParent::RecvSynthesizeResponse(const nsHttpResponseHead& aHead,
+                                          const InputStreamParams& aBody,
+                                          const nsCString& aSerializedSecurityInfo,
+                                          const nsCString& aFinalURLSpec)
+{
+  mParentListener->SynthesizeResponse(aHead, aBody, aSerializedSecurityInfo, aFinalURLSpec);
+  return true;
+}
+
+bool
+HttpChannelParent::RecvResetInterception()
+{
+  mParentListener->ResetInterception();
   return true;
 }
 
@@ -1711,6 +1745,13 @@ HttpChannelParent::IssueWarning(uint32_t aWarning, bool aAsError)
 {
   Unused << SendIssueDeprecationWarning(aWarning, aAsError);
   return NS_OK;
+}
+
+already_AddRefed<nsIChannel>
+HttpChannelParent::GetActiveChannel()
+{
+  nsCOMPtr<nsIChannel> active = mRedirectChannel ? mRedirectChannel.get() : mChannel.get();
+  return active.forget();
 }
 
 } // namespace net

@@ -108,7 +108,12 @@ public:
   bool RecvNotifyTrackingProtectionDisabled() override;
   void FlushedForDiversion();
 
+  void SynthesizeResponse(const nsHttpResponseHead& aSynthesizedResponseHead,
+                          nsIInputStream* aSynthesizedBody,
+                          const nsACString& aFinalURLSpec);
+
 protected:
+  bool RecvDispatchFetchEvent() override;
   bool RecvOnStartRequest(const nsresult& channelStatus,
                           const nsHttpResponseHead& responseHead,
                           const bool& useResponseHead,
@@ -245,6 +250,8 @@ private:
   // Set if the corresponding parent channel should suspend after a response
   // is synthesized.
   bool mSuspendParentAfterSynthesizeResponse;
+
+  bool mResponseIsSynthesized;
 
   // true after successful AsyncOpen until OnStopRequest completes.
   bool RemoteChannelExists() { return mIPCOpen && !mKeptAlive; }

@@ -483,6 +483,8 @@ private:
                         const nsAString& aIcon,
                         const nsAString& aData,
                         const nsAString& aBehavior);
+
+  friend class ServiceWorkerRegistrarParent;
 };
 
 } // namespace workers

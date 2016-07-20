@@ -296,6 +296,7 @@ TabParent::TabParent(nsIContentParent* aManager,
   , mCursor(nsCursor(-1))
   , mTabSetsCursor(false)
   , mHasContentOpener(false)
+  , mIsControlled(false)
 #ifdef DEBUG
   , mActiveSupressDisplayportCount(0)
 #endif
@@ -2680,6 +2681,14 @@ TabParent::RecvAudioChannelActivityNotification(const uint32_t& aAudioChannel,
                         aActive ? u"active" : u"inactive");
   }
 
+  return true;
+}
+
+bool
+TabParent::RecvMarkDocumentControlled(const bool& aIsControlled)
+{
+  printf("document is controlled: %s\n", aIsControlled ? "true" : "false");
+  mIsControlled = aIsControlled;
   return true;
 }
 

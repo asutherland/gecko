@@ -619,6 +619,10 @@ public:
   bool GetRenderFrameInfo(TextureFactoryIdentifier* aTextureFactoryIdentifier,
                           uint64_t* aLayersId);
 
+  bool DocumentIsControlled() {
+    return mIsControlled;
+  }
+
 protected:
   bool ReceiveMessage(const nsString& aMessage,
                       bool aSync,
@@ -652,6 +656,8 @@ protected:
 
   virtual bool RecvAudioChannelActivityNotification(const uint32_t& aAudioChannel,
                                                     const bool& aActive) override;
+
+  virtual bool RecvMarkDocumentControlled(const bool& aIsControlled) override;
 
   ContentCacheInParent mContentCache;
 
@@ -779,6 +785,8 @@ private:
   RefPtr<nsIPresShell> mPresShellWithRefreshListener;
 
   bool mHasContentOpener;
+
+  bool mIsControlled;
 
 #ifdef DEBUG
   int32_t mActiveSupressDisplayportCount;

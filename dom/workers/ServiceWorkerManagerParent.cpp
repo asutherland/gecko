@@ -6,13 +6,17 @@
 
 #include "ServiceWorkerManagerParent.h"
 #include "ServiceWorkerManagerService.h"
+#include "ServiceWorkerManager.h"
 #include "mozilla/AppProcessChecker.h"
+#include "mozilla/ClearOnShutdown.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ServiceWorkerRegistrar.h"
+#include "mozilla/dom/workers/Workers.h"
 #include "mozilla/ipc/BackgroundParent.h"
 #include "mozilla/ipc/BackgroundUtils.h"
 #include "mozilla/unused.h"
 #include "nsThreadUtils.h"
+#include "nsIURI.h"
 
 namespace mozilla {
 
@@ -21,9 +25,147 @@ using namespace ipc;
 namespace dom {
 namespace workers {
 
+StaticRefPtr<ServiceWorkerRegistrarParent> gRegistrarInstance;
+
+ServiceWorkerRegistrarParent*
+ServiceWorkerRegistrarParent::Get()
+{
+  if (!gRegistrarInstance) {
+    ClearOnShutdown(&gRegistrarInstance);
+    gRegistrarInstance = new ServiceWorkerRegistrarParent();
+  }
+  return gRegistrarInstance;
+}
+
+bool
+ServiceWorkerRegistrarParent::IsAvailable(/*const PrincipalOriginAttributes& aOriginAttributes*/
+    nsIPrincipal* aPrincipal,
+    nsIURI* aURI)
+{
+  /*nsAutoCString originAttributesSuffix;
+    aOriginAttributes.CreateSuffix(originAttributesSuffix);*/
+  nsAutoCString scopeKey;
+  nsresult rv = ServiceWorkerManager::PrincipalToScopeKey(aPrincipal, scopeKey);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return false;
+  }
+
+  printf("checking for `%s`\n", scopeKey.get());
+  const nsTArray<nsString>* scopes = mRegistrations.Get(scopeKey);
+  if (!scopes) {
+    return false;
+  }
+
+  nsAutoCString spec;
+  rv = aURI->GetSpec(spec);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return false;
+  }
+
+  nsAutoString wideSpec = NS_ConvertUTF8toUTF16(spec);
+
+  printf("checking scopes\n");
+  for (uint32_t i = 0; i < scopes->Length(); ++i) {
+    const nsString& current = (*scopes)[i];
+    if (StringBeginsWith(wideSpec, current)) {
+      printf("found matching scope %s\n", NS_ConvertUTF16toUTF8(current).get());
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void
+ServiceWorkerRegistrarParent::PropagateRegistration(ServiceWorkerRegistrationData& aData)
+{
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIPrincipal> principal = PrincipalInfoToPrincipal(aData.principal(), &rv);
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  nsAutoCString scopeKey;
+  rv = ServiceWorkerManager::PrincipalToScopeKey(principal, scopeKey);
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  nsString scope(NS_ConvertUTF8toUTF16(aData.scope()));
+  nsTArray<nsString>* scopes = mRegistrations.LookupOrAdd(scopeKey);
+  for (uint32_t i = 0; i < scopes->Length(); i++) {
+    if ((*scopes)[i] == scope) {
+      return;
+    }
+  }
+  scopes->AppendElement(scope);
+
+  printf("registering %s for %s\n", aData.scope().get(), scopeKey.get());
+}
+
+void
+ServiceWorkerRegistrarParent::PropagateUnregister(const PrincipalInfo& aPrincipalInfo,
+                                                  const nsAString& aScope)
+{
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIPrincipal> principal = PrincipalInfoToPrincipal(aPrincipalInfo, &rv);
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  nsAutoCString scopeKey;
+  rv = ServiceWorkerManager::PrincipalToScopeKey(principal, scopeKey);
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  nsTArray<nsString>* scopes = mRegistrations.Get(scopeKey);
+  for (uint32_t i = 0; i < scopes->Length(); i++) {
+    if ((*scopes)[i] == aScope) {
+      scopes->RemoveElementAt(i);
+      printf("unregistering %s for %s\n", NS_ConvertUTF16toUTF8(aScope).get(), scopeKey.get());
+      break;
+    }
+  }
+}
+
 namespace {
 
 uint64_t sServiceWorkerManagerParentID = 0;
+
+class RegisterOnMainThread final : public Runnable
+{
+public:
+  explicit RegisterOnMainThread(const ServiceWorkerRegistrationData& aData)
+      : mData(aData)
+  {
+    AssertIsInMainProcess();
+  }
+
+  NS_IMETHOD
+  Run()
+  {
+    AssertIsOnMainThread();
+    ServiceWorkerRegistrarParent::Get()->PropagateRegistration(mData);
+    return NS_OK;
+  }
+private:
+  ServiceWorkerRegistrationData mData;
+};
+
+class UnregisterOnMainThread final : public Runnable
+{
+public:
+  UnregisterOnMainThread(const PrincipalInfo& aPrincipalInfo, const nsAString& aScope)
+      : mPrincipalInfo(aPrincipalInfo)
+      , mScope(aScope)
+  {
+    AssertIsInMainProcess();
+  }
+
+  NS_IMETHOD
+  Run()
+  {
+    AssertIsOnMainThread();
+    ServiceWorkerRegistrarParent::Get()->PropagateUnregister(mPrincipalInfo, mScope);
+    return NS_OK;
+  }
+private:
+  PrincipalInfo mPrincipalInfo;
+  nsString mScope;
+};
 
 class RegisterServiceWorkerCallback final : public Runnable
 {
@@ -54,6 +196,9 @@ public:
     if (managerService) {
       managerService->PropagateRegistration(mParentID, mData);
     }
+
+    RefPtr<RegisterOnMainThread> event = new RegisterOnMainThread(mData);
+    NS_DispatchToMainThread(event);
 
     return NS_OK;
   }
@@ -97,6 +242,8 @@ public:
                                           mScope);
     }
 
+    RefPtr<UnregisterOnMainThread> event = new UnregisterOnMainThread(mPrincipalInfo, mScope);
+    NS_DispatchToMainThread(event);
     return NS_OK;
   }
 

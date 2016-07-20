@@ -52,7 +52,15 @@ public:
 
   void SetupInterception(const nsHttpResponseHead& aResponseHead);
   void SetupInterceptionAfterRedirect(bool aShouldIntercept);
-  void ClearInterceptedChannel();
+  void ClearInterceptedChannel(HttpChannelParent* caller);
+
+  void SynthesizeResponse(const nsHttpResponseHead& aHead,
+                          const InputStreamParams& aBody,
+                          const nsCString& aSerializedSecurityInfo,
+                          const nsCString& aFinalURLSpec);
+  void ResetInterception();
+  void FinishSynthesizeResponse(const nsACString& aFinalURLSpec,
+                                const nsACString& aSecurityInfoSerialization);
 
 private:
   virtual ~HttpChannelParentListener();
@@ -75,6 +83,7 @@ private:
   bool mShouldSuspendIntercept;
 
   nsAutoPtr<nsHttpResponseHead> mSynthesizedResponseHead;
+  nsCOMPtr<nsIInputStream> mSynthesizedBody;
 
   // Handle to the channel wrapper if this channel has been intercepted.
   nsCOMPtr<nsIInterceptedChannel> mInterceptedChannel;

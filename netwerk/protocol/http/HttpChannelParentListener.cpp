@@ -251,7 +251,60 @@ HttpChannelParentListener::ShouldPrepareForIntercept(nsIURI* aURI,
                                                      bool aIsNonSubresourceRequest,
                                                      bool* aShouldIntercept)
 {
-  *aShouldIntercept = mShouldIntercept;
+  *aShouldIntercept = false;
+
+  nsAutoCString spec;
+  aURI->GetSpec(spec);
+
+  RefPtr<HttpChannelParent> channel = do_QueryObject(mNextListener);
+  if (mRedirectChannelId) {
+    nsresult rv = NS_OK;
+    nsCOMPtr<nsIRedirectChannelRegistrar> registrar =
+        do_GetService("@mozilla.org/redirectchannelregistrar;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIParentChannel> redirectChannel;
+    rv = registrar->GetParentChannel(mRedirectChannelId,
+                                     getter_AddRefs(redirectChannel));
+    printf("finding actually channel parent: pre(%p) ", channel.get());
+    channel = do_QueryObject(redirectChannel);
+    printf("post(%p)\n", channel.get());
+  } else {
+    printf("not finding another parent: %p\n", channel.get());
+  }
+  /*nsCOMPtr<nsIChannel> channel = channelParent ? channelParent->GetActiveChannel() : nullptr;
+  nsCOMPtr<nsILoadContext> loadContext;
+  NS_QueryNotificationCallbacks(channel, loadContext);*/
+
+  if (aIsNonSubresourceRequest) {
+    printf("parent: non subresource request for %s\n", spec.get());
+
+    /*DocShellOriginAttributes docShellAttrs;
+    if (channel && channel->mLoadContext) {
+      printf("loadcontext: %p\n", channel->mLoadContext);
+      bool result = channel->mLoadContext->GetOriginAttributes(docShellAttrs);
+      if (NS_WARN_IF(!result)) {
+        return NS_ERROR_FAILURE;
+      }
+    } else {
+      printf("channel: %p\n", channel);
+    }
+
+    NeckoOriginAttributes neckoAttrs;
+    neckoAttrs.InheritFromDocShellToNecko(docShellAttrs);
+    PrincipalOriginAttributes attrs;
+    attrs.InheritFromNecko(neckoAttrs);*/
+
+    nsCOMPtr<nsIPrincipal> resultPrincipal;// = channel->mChannel->GetURIPrincipal();
+    nsContentUtils::GetSecurityManager()->
+        GetChannelResultPrincipal(channel->mChannel, getter_AddRefs(resultPrincipal));
+    *aShouldIntercept = ServiceWorkerRegistrarParent::Get()->IsAvailable(resultPrincipal, aURI);
+  } else {
+    printf("parent: subresource request for %s\n", spec.get());
+
+    *aShouldIntercept = channel && channel->mTabParent && channel->mTabParent->DocumentIsControlled();
+  }
+  printf("parent decision: %s\n", *aShouldIntercept ? "true" : "false");
   return NS_OK;
 }
 
@@ -280,17 +333,18 @@ NS_IMPL_ISUPPORTS(HeaderVisitor, nsIHttpHeaderVisitor)
 class FinishSynthesizedResponse : public Runnable
 {
   nsCOMPtr<nsIInterceptedChannel> mChannel;
+  nsCString mFinalURLSpec;
 public:
-  explicit FinishSynthesizedResponse(nsIInterceptedChannel* aChannel)
+  explicit FinishSynthesizedResponse(nsIInterceptedChannel* aChannel,
+                                     const nsACString& aFinalURLSpec)
   : mChannel(aChannel)
+  , mFinalURLSpec(aFinalURLSpec)
   {
   }
 
   NS_IMETHOD Run()
   {
-    // The URL passed as an argument here doesn't matter, since the child will
-    // receive a redirection notification as a result of this synthesized response.
-    mChannel->FinishSynthesizedResponse(EmptyCString());
+    mChannel->FinishSynthesizedResponse(mFinalURLSpec);
     return NS_OK;
   }
 };
@@ -298,29 +352,137 @@ public:
 NS_IMETHODIMP
 HttpChannelParentListener::ChannelIntercepted(nsIInterceptedChannel* aChannel)
 {
-  if (mShouldSuspendIntercept) {
-    mInterceptedChannel = aChannel;
-    return NS_OK;
+  mInterceptedChannel = aChannel;
+  RefPtr<HttpChannelParent> channel = do_QueryObject(mNextListener);
+  Unused << channel->SendDispatchFetchEvent();
+  return NS_OK;
+}
+
+void
+HttpChannelParentListener::ResetInterception()
+{
+  RefPtr<HttpChannelParent> channel = do_QueryObject(mNextListener);
+  MOZ_ASSERT(channel);
+  nsAutoCString spec;
+  channel->mChannel->GetName(spec);
+  printf("resetting for %s\n", spec.get());
+
+  //XXXjdm unsure why we receive a ReseTInterception message after ActorDestroy...
+  if (mInterceptedChannel) {
+    printf("actually resetting\n");
+    mInterceptedChannel->ResetInterception();
+    mInterceptedChannel = nullptr;
+  }
+}
+
+class FinishSynthesizeOnMainThread : public Runnable
+{
+  HttpChannelParentListener* mChannel;
+  nsCString mFinalURLSpec;
+  nsCString mSecurityInfoSerialization;
+public:
+  FinishSynthesizeOnMainThread(HttpChannelParentListener* aChannel,
+                               const nsACString& aFinalURLSpec,
+                               const nsACString& aSecurityInfoSerialization)
+  : mChannel(aChannel)
+  , mFinalURLSpec(aFinalURLSpec)
+  , mSecurityInfoSerialization(aSecurityInfoSerialization)
+  {
   }
 
+  NS_IMETHOD Run()
+  {
+    mChannel->FinishSynthesizeResponse(mFinalURLSpec, mSecurityInfoSerialization);
+    return NS_OK;
+  }
+};
+
+struct CopyCompleteClosure {
+  nsCString mFinalURLSpec;
+  nsCString mSecurityInfoSerialization;
+  HttpChannelParentListener* mChannel;
+};
+
+void SynthesizedBodyCopyComplete(void* aClosure, nsresult aStatus)
+{
+  MOZ_ASSERT(NS_SUCCEEDED(aStatus));
+  nsAutoPtr<CopyCompleteClosure> closure(static_cast<CopyCompleteClosure*>(aClosure));
+  RefPtr<FinishSynthesizeOnMainThread> event =
+      new FinishSynthesizeOnMainThread(closure->mChannel,
+                                       closure->mFinalURLSpec,
+                                       closure->mSecurityInfoSerialization);
+  NS_DispatchToMainThread(event);
+}
+
+void
+HttpChannelParentListener::SynthesizeResponse(const nsHttpResponseHead& aHead,
+                                              const InputStreamParams& aBody,
+                                              const nsCString& aSerializedSecurityInfo,
+                                              const nsCString& aFinalURLSpec)
+{
+  /*if (mShouldSuspendIntercept) {
+    mInterceptedChannel = aChannel;
+    return;
+    }*/
+
+  MOZ_ASSERT(mInterceptedChannel);
+  if (!mInterceptedChannel) {
+    return;
+  }
+
+  mSynthesizedResponseHead = new nsHttpResponseHead(aHead);
+  nsTArray<mozilla::ipc::FileDescriptor> fds;
+  mSynthesizedBody = DeserializeInputStream(aBody, fds);
+  MOZ_ASSERT(fds.Length() == 0);
+
+  nsresult rv;
+  nsCOMPtr<nsIEventTarget> stsThread = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID, &rv);
+  if (NS_WARN_IF(!stsThread)) {
+    return;
+  }
+
+  nsCOMPtr<nsIOutputStream> body;
+  mInterceptedChannel->GetResponseBody(getter_AddRefs(body));
+
+  nsAutoPtr<CopyCompleteClosure> closure(new CopyCompleteClosure {
+      aFinalURLSpec, aSerializedSecurityInfo, this
+          });
+
+  rv = NS_AsyncCopy(mSynthesizedBody, body, stsThread, NS_ASYNCCOPY_VIA_READSEGMENTS, 4096,
+                    SynthesizedBodyCopyComplete, closure.forget());
+  NS_ENSURE_SUCCESS_VOID(rv);
+}
+
+void
+HttpChannelParentListener::FinishSynthesizeResponse(const nsACString& aFinalURLSpec,
+                                                    const nsACString& aSecurityInfoSerialization)
+{
   nsAutoCString statusText;
   mSynthesizedResponseHead->StatusText(statusText);
-  aChannel->SynthesizeStatus(mSynthesizedResponseHead->Status(), statusText);
-  nsCOMPtr<nsIHttpHeaderVisitor> visitor = new HeaderVisitor(aChannel);
-  mSynthesizedResponseHead->VisitHeaders(visitor,
-                                         nsHttpHeaderArray::eFilterResponse);
+  mInterceptedChannel->SynthesizeStatus(mSynthesizedResponseHead->Status(), statusText);
+  nsCOMPtr<nsIHttpHeaderVisitor> visitor = new HeaderVisitor(mInterceptedChannel);
+  mSynthesizedResponseHead->VisitHeaders(visitor, nsHttpHeaderArray::eFilterResponseOriginal);
 
-  nsCOMPtr<nsIRunnable> event = new FinishSynthesizedResponse(aChannel);
+  RefPtr<HttpChannelParent> channel = do_QueryObject(mNextListener);
+  MOZ_ASSERT(channel);
+
+  if (!aSecurityInfoSerialization.IsEmpty()) {
+    nsCOMPtr<nsISupports> secInfo;
+    NS_DeserializeObject(aSecurityInfoSerialization, getter_AddRefs(secInfo));
+    channel->mChannel->OverrideSecurityInfo(secInfo);
+  }
+
+  nsCOMPtr<nsIRunnable> event = new FinishSynthesizedResponse(mInterceptedChannel,
+                                                              aFinalURLSpec);
   NS_DispatchToCurrentThread(event);
 
   mSynthesizedResponseHead = nullptr;
+  mInterceptedChannel = nullptr;
 
   MOZ_ASSERT(mNextListener);
-  RefPtr<HttpChannelParent> channel = do_QueryObject(mNextListener);
-  MOZ_ASSERT(channel);
+  //RefPtr<HttpChannelParent> channel = do_QueryObject(mNextListener);
+  //MOZ_ASSERT(channel);
   channel->ResponseSynthesized();
-
-  return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
@@ -381,9 +543,11 @@ HttpChannelParentListener::SetupInterceptionAfterRedirect(bool aShouldIntercept)
 }
 
 void
-HttpChannelParentListener::ClearInterceptedChannel()
+HttpChannelParentListener::ClearInterceptedChannel(HttpChannelParent* caller)
 {
-  if (mInterceptedChannel) {
+  RefPtr<HttpChannelParent> channel = do_QueryObject(mNextListener);
+
+  if (mInterceptedChannel && channel == caller) {
     mInterceptedChannel->Cancel(NS_ERROR_INTERCEPTION_FAILED);
     mInterceptedChannel = nullptr;
   }

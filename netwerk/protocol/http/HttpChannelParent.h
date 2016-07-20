@@ -98,6 +98,8 @@ public:
     }
   }
 
+  void FinishSynthesizeResponse();
+
 protected:
   // used to connect redirected-to channel in parent with just created
   // ChildChannel.  Used during redirects.
@@ -140,7 +142,8 @@ protected:
                    const bool&                aSuspendAfterSynthesizeResponse,
                    const bool&                aAllowStaleCacheContent,
                    const nsCString&           aContentTypeHint,
-                   const nsCString&           aChannelId);
+                   const nsCString&           aChannelId,
+                   const uint32_t&            aRedirectMode);
 
   virtual bool RecvSetPriority(const uint16_t& priority) override;
   virtual bool RecvSetClassOfService(const uint32_t& cos) override;
@@ -164,6 +167,11 @@ protected:
   virtual bool RecvDivertComplete() override;
   virtual bool RecvRemoveCorsPreflightCacheEntry(const URIParams& uri,
                                                  const mozilla::ipc::PrincipalInfo& requestingPrincipal) override;
+  virtual bool RecvSynthesizeResponse(const nsHttpResponseHead& aHead,
+                                      const InputStreamParams& aBody,
+                                      const nsCString& aSerializedSecurityInfo,
+                                      const nsCString& aFinalURLSpec) override;
+  virtual bool RecvResetInterception() override;
   virtual void ActorDestroy(ActorDestroyReason why) override;
 
   // Supporting function for ADivertableParentChannel.
@@ -180,6 +188,8 @@ protected:
 
   nsresult ReportSecurityMessage(const nsAString& aMessageTag,
                                  const nsAString& aMessageCategory) override;
+
+  already_AddRefed<nsIChannel> GetActiveChannel();
 
   // Calls SendDeleteSelf and sets mIPCClosed to true because we should not
   // send any more messages after that. Bug 1274886

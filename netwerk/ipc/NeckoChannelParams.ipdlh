@@ -125,6 +125,7 @@ struct HttpChannelOpenArgs
   bool                        allowStaleCacheContent;
   nsCString                   contentTypeHint;
   nsCString                   channelId;
+  uint32_t                    redirectMode;
 };
 
 struct HttpChannelConnectArgs

@@ -45,6 +45,7 @@
 #include "mozilla/dom/PromiseNativeHandler.h"
 #include "mozilla/dom/Request.h"
 #include "mozilla/dom/RootedDictionary.h"
+#include "mozilla/dom/TabChild.h"
 #include "mozilla/ipc/BackgroundChild.h"
 #include "mozilla/ipc/PBackgroundChild.h"
 #include "mozilla/ipc/PBackgroundSharedTypes.h"
@@ -1952,12 +1953,22 @@ ServiceWorkerManager::MaybeStopControlling(nsIDocument* aDoc)
   MOZ_ASSERT(aDoc);
   RefPtr<ServiceWorkerRegistrationInfo> registration;
   mControlledDocuments.Remove(aDoc, getter_AddRefs(registration));
+  printf("maybe stopped controlling: %p\n", registration.get());
   // A document which was uncontrolled does not maintain that state itself, so
   // it will always call MaybeStopControlling() even if there isn't an
   // associated registration. So this check is required.
   if (registration) {
     StopControllingADocument(registration);
   }
+
+  nsCOMPtr<nsIDocShell> docShell = aDoc->GetDocShell();
+  if (docShell) {
+    TabChild* tabChild = TabChild::GetFrom(docShell);
+    if (tabChild) {
+      tabChild->SendMarkDocumentControlled(false);
+    }
+  }
+
 }
 
 void
@@ -1991,6 +2002,13 @@ ServiceWorkerManager::StartControllingADocument(ServiceWorkerRegistrationInfo* a
 
   aRegistration->StartControllingADocument();
   mControlledDocuments.Put(aDoc, aRegistration);
+  nsCOMPtr<nsIDocShell> docShell = aDoc->GetDocShell();
+  if (docShell) {
+    TabChild* tabChild = TabChild::GetFrom(docShell);
+    if (tabChild) {
+      tabChild->SendMarkDocumentControlled(true);
+    }
+  }
   if (!aDocumentId.IsEmpty()) {
     aDoc->SetId(aDocumentId);
   }

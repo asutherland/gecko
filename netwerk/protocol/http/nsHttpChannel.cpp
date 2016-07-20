@@ -2337,6 +2337,15 @@ nsHttpChannel::StartRedirectChannelToURI(nsIURI *upgradedURI, uint32_t flags)
         }
     }
 
+    /*if (mInterceptCache == INTERCEPTED &&
+        !(flags & (nsIChannelEventSink::REDIRECT_INTERNAL |
+                   nsIChannelEventSink::REDIRECT_STS_UPGRADE))) {
+        if (mRedirectMode == nsIHttpChannelInternal::REDIRECT_MODE_FOLLOW &&
+            !nsContentUtils::IsNonSubresourceRequest(this)) {
+            MarkIntercepted();
+        }
+        }*/
+
     PushRedirectAsyncFunc(
         &nsHttpChannel::ContinueAsyncRedirectChannelToURI);
     rv = gHttpHandler->AsyncOnChannelRedirect(this, newChannel, flags);
@@ -3141,6 +3150,13 @@ nsHttpChannel::ProcessFallback(bool *waitingForRedirectCallback)
 
     // ... and fallbacks should only load from the cache.
     uint32_t newLoadFlags = mLoadFlags | LOAD_REPLACE | LOAD_ONLY_FROM_CACHE;
+
+    uint32_t replacementLoadFlags;
+    newChannel->GetLoadFlags(&replacementLoadFlags);
+    if (replacementLoadFlags & LOAD_BYPASS_SERVICE_WORKER) {
+        newLoadFlags |= LOAD_BYPASS_SERVICE_WORKER;
+    }
+    
     rv = newChannel->SetLoadFlags(newLoadFlags);
 
     // Inform consumers about this fake redirect
@@ -3214,6 +3230,22 @@ IsSubRangeRequest(nsHttpRequestHead &aRequestHead)
     }
     return !byteRange.EqualsLiteral("bytes=0-");
 }
+
+class AsyncNotifyController : public Runnable
+{
+    RefPtr<InterceptedChannelChrome> mIntercepted;
+public:
+    explicit AsyncNotifyController(InterceptedChannelChrome* aIntercepted)
+    : mIntercepted(aIntercepted)
+    {
+    }
+
+    NS_IMETHODIMP Run()
+    {
+        mIntercepted->NotifyController();
+        return NS_OK;
+    }
+};
 
 nsresult
 nsHttpChannel::OpenCacheEntry(bool isHttps)
@@ -3387,7 +3419,8 @@ nsHttpChannel::OpenCacheEntry(bool isHttps)
 
         RefPtr<InterceptedChannelChrome> intercepted =
                 new InterceptedChannelChrome(this, controller, entry);
-        intercepted->NotifyController();
+        RefPtr<AsyncNotifyController> event = new AsyncNotifyController(intercepted);
+        NS_DispatchToMainThread(event);
     } else {
         if (mInterceptCache == INTERCEPTED) {
             cacheEntryOpenFlags |= nsICacheStorage::OPEN_INTERCEPTED;
@@ -3850,6 +3883,7 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
 
     if (doValidation && mInterceptCache == INTERCEPTED) {
         doValidation = false;
+        LOG(("Ignoring validation request for intercepted channel"));
     }
 
     mCachedContentIsValid = !doValidation;
@@ -4324,6 +4358,9 @@ nsHttpChannel::OpenCacheInputStream(nsICacheEntry* cacheEntry, bool startBufferi
         if (NS_FAILED(rv)) {
             LOG(("failed to parse security-info [channel=%p, entry=%p]",
                  this, cacheEntry));
+            nsAutoCString spec;
+            mURI->GetSpec(spec);
+            printf("warning for %s:\n", spec.get());
             NS_WARNING("failed to parse security-info");
             cacheEntry->AsyncDoom(nullptr);
             return rv;
@@ -4733,8 +4770,10 @@ DoAddCacheEntryHeaders(nsHttpChannel *self,
 
     LOG(("nsHttpChannel::AddCacheEntryHeaders [this=%p] begin", self));
     // Store secure data in memory only
-    if (securityInfo)
-        entry->SetSecurityInfo(securityInfo);
+    if (securityInfo) {
+        LOG(("setting cache entry security info"));
+        NS_WARN_IF(NS_FAILED(entry->SetSecurityInfo(securityInfo)));
+    }
 
     // Store the HTTP request method with the cache entry so we can distinguish
     // for example GET and HEAD responses.
@@ -5079,6 +5118,12 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
             rv = newChannel->GetLoadFlags(&loadFlags);
             NS_ENSURE_SUCCESS(rv, rv);
             loadFlags |= nsIChannel::LOAD_BYPASS_SERVICE_WORKER;
+            nsCOMPtr<nsISupports> raw = do_QueryInterface(newChannel);
+            nsCOMPtr<nsIURI> url;
+            newChannel->GetURI(getter_AddRefs(url));
+            nsAutoCString spec;
+            url->GetSpec(spec);
+            printf("marking SW bypass for %p (%s)\n", raw.get(), spec.get());
             rv = newChannel->SetLoadFlags(loadFlags);
             NS_ENSURE_SUCCESS(rv, rv);
         }
@@ -5490,6 +5535,8 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
         return rv;
     }
 
+    nsCOMPtr<nsISupports> raw = do_QueryInterface((nsIStreamListener*)this);
+    printf("shouldintercept for %p, %s\n", raw.get(), mLoadFlags & nsIChannel::LOAD_BYPASS_SERVICE_WORKER ? "true" : "false");
     if (mInterceptCache != INTERCEPTED && ShouldIntercept()) {
         mInterceptCache = MAYBE_INTERCEPT;
         SetCouldBeSynthesized();
@@ -7546,7 +7593,10 @@ nsHttpChannel::SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks)
 void
 nsHttpChannel::MarkIntercepted()
 {
-    mInterceptCache = INTERCEPTED;
+    nsAutoCString spec;
+    mURI->GetSpec(spec);
+    printf("marking intercepted for %p (%s)\n", this, spec.get());
+   mInterceptCache = INTERCEPTED;
 }
 
 NS_IMETHODIMP

@@ -8,6 +8,7 @@
 #define mozilla_dom_ServiceWorkerManagerParent_h
 
 #include "mozilla/dom/PServiceWorkerManagerParent.h"
+#include "nsClassHashtable.h"
 
 namespace mozilla {
 
@@ -71,6 +72,26 @@ private:
   uint64_t mID;
 
   bool mActorDestroyed;
+};
+
+class ServiceWorkerRegistrarParent final
+{
+public:
+  NS_INLINE_DECL_REFCOUNTING(mozilla::dom::workers::ServiceWorkerRegistrarParent)
+
+  static ServiceWorkerRegistrarParent* Get();
+  bool IsAvailable(/*const PrincipalOriginAttributes& aOriginAttributes*/nsIPrincipal* aPrincipal, nsIURI* aURI);
+
+  void PropagateRegistration(ServiceWorkerRegistrationData& aData);
+  void PropagateUnregister(const mozilla::ipc::PrincipalInfo& aPrincipalInfo,
+                           const nsAString& aScope);
+
+private:
+  ~ServiceWorkerRegistrarParent()
+  {
+  }
+
+  nsClassHashtable<nsCStringHashKey, nsTArray<nsString>> mRegistrations;
 };
 
 } // namespace workers
