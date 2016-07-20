@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ServiceWorkerManager.h"
+#include "ServiceWorkerManagerParent.h"
 
 #include "nsAutoPtr.h"
 #include "nsIConsoleService.h"
@@ -180,6 +181,8 @@ PopulateRegistrationData(nsIPrincipal* aPrincipal,
 
   aData.scope() = aRegistration->mScope;
 
+  ServiceWorkerManager::PrincipalToScopeKey(aPrincipal, aData.scopeKey());
+
   RefPtr<ServiceWorkerInfo> newest = aRegistration->Newest();
   if (NS_WARN_IF(!newest)) {
     return NS_ERROR_FAILURE;
@@ -257,6 +260,10 @@ ServiceWorkerManager::Init()
   }
 
   if (XRE_IsParentProcess()) {
+    // Unused, but needs to ensure that the service is created on the main thread.
+    RefPtr<ServiceWorkerRegistrarParent> swrp = ServiceWorkerRegistrarParent::Get();
+    MOZ_ASSERT(swrp);
+
     RefPtr<ServiceWorkerRegistrar> swr = ServiceWorkerRegistrar::Get();
     MOZ_ASSERT(swr);
 

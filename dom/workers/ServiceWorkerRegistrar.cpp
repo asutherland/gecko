@@ -349,6 +349,10 @@ ServiceWorkerRegistrar::ReadData()
       entry->principal() =
         mozilla::ipc::ContentPrincipalInfo(attrs, entry->scope());
 
+      entry->scopeKey() = entry->scope();
+      entry->scopeKey().Append('!');
+      entry->scopeKey().Append(suffix);
+
       GET_LINE(entry->currentWorkerURL());
 
       nsAutoCString cacheName;

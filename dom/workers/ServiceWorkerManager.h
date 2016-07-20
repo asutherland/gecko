@@ -297,6 +297,12 @@ public:
   void
   WorkerIsIdle(ServiceWorkerInfo* aWorker);
 
+  // This method generates a key using appId and isInElementBrowser from the
+  // principal. We don't use the origin because it can change during the
+  // loading.
+  static nsresult
+  PrincipalToScopeKey(nsIPrincipal* aPrincipal, nsACString& aKey);
+
 private:
   ServiceWorkerManager();
   ~ServiceWorkerManager();
@@ -365,12 +371,6 @@ private:
   already_AddRefed<ServiceWorkerRegistrationInfo>
   GetServiceWorkerRegistrationInfo(const nsACString& aScopeKey,
                                    nsIURI* aURI);
-
-  // This method generates a key using appId and isInElementBrowser from the
-  // principal. We don't use the origin because it can change during the
-  // loading.
-  static nsresult
-  PrincipalToScopeKey(nsIPrincipal* aPrincipal, nsACString& aKey);
 
   static void
   AddScopeAndRegistration(const nsACString& aScope,

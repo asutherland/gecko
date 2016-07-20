@@ -79,6 +79,8 @@ class ServiceWorkerRegistrarParent final
 public:
   NS_INLINE_DECL_REFCOUNTING(mozilla::dom::workers::ServiceWorkerRegistrarParent)
 
+  ServiceWorkerRegistrarParent();
+
   static ServiceWorkerRegistrarParent* Get();
   bool IsAvailable(/*const PrincipalOriginAttributes& aOriginAttributes*/nsIPrincipal* aPrincipal, nsIURI* aURI);
 
@@ -91,6 +93,7 @@ private:
   {
   }
 
+  mozilla::Mutex mLock;
   nsClassHashtable<nsCStringHashKey, nsTArray<nsString>> mRegistrations;
 };
 

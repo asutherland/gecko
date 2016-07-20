@@ -17,6 +17,7 @@ struct ServiceWorkerRegistrationData
   nsString cacheName;
 
   PrincipalInfo principal;
+  nsCString scopeKey;
 };
 
 } // namespace dom
