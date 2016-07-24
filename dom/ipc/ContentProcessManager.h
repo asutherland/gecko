@@ -112,6 +112,14 @@ public:
                                  /*out*/ TabId* aOpenerTabId);
 
   /**
+   * Return true if the content process has any tabs or shared/service workers
+   * tracked and presumably alive.  It's assumed if the caller is deallocating
+   * anything at the same time, they have deallocated it before making this
+   * call.
+   */
+  bool ContentProcessHasLiveChildren(const ContentParentId& aChildCpId);
+
+  /**
    * Get all TabParents' Ids managed by the givent content process.
    * Return empty array when TabParent couldn't be found via aChildCpId
    */

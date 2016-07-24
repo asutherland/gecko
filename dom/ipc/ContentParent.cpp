@@ -1538,6 +1538,21 @@ ContentParent::TransformPreallocatedIntoBrowser(ContentParent* aOpener)
 }
 
 void
+ContentParent::MaybeShutDown() {
+  // Shut down this process if there's no other tabs or shared/service workers
+  // that should keep it alive.
+  ContentProcessManager* cpm = ContentProcessManager::GetSingleton();
+  if (!cpm->ContentProcessHasLiveChildren(this->ChildID())) {
+    // In the case of normal shutdown, send a shutdown message to child to
+    // allow it to perform shutdown tasks.
+    MessageLoop::current()->PostTask(NewRunnableMethod
+                                     <ShutDownMethod>(this,
+                                                      &ContentParent::ShutDownProcess,
+                                                      SEND_SHUTDOWN_MESSAGE));
+  }
+}
+
+void
 ContentParent::ShutDownProcess(ShutDownMethod aMethod)
 {
   // Shutting down by sending a shutdown message works differently than the
@@ -2047,19 +2062,11 @@ ContentParent::NotifyTabDestroyed(const TabId& aTabId,
     Unused << PContentPermissionRequestParent::Send__delete__(permissionRequestParent);
   }
 
-  // There can be more than one PBrowser for a given app process
-  // because of popup windows.  When the last one closes, shut
-  // us down.
+  // The tab is dead, tell the ContentProcessManager, then consider shutting
+  // down.
   ContentProcessManager* cpm = ContentProcessManager::GetSingleton();
-  nsTArray<TabId> tabIds = cpm->GetTabParentsByProcessId(this->ChildID());
-  if (tabIds.Length() == 1) {
-    // In the case of normal shutdown, send a shutdown message to child to
-    // allow it to perform shutdown tasks.
-    MessageLoop::current()->PostTask(NewRunnableMethod
-                                     <ShutDownMethod>(this,
-                                                      &ContentParent::ShutDownProcess,
-                                                      SEND_SHUTDOWN_MESSAGE));
-  }
+  cpm->DeallocateTabId(this->ChildID(), aTabId);
+  MaybeShutDown();
 }
 
 jsipc::CPOWManager*
@@ -4746,8 +4753,6 @@ ContentParent::DeallocateTabId(const TabId& aTabId,
     ContentParent* cp = cpm->GetContentProcessById(aCpId);
 
     cp->NotifyTabDestroyed(aTabId, aMarkedDestroying);
-
-    ContentProcessManager::GetSingleton()->DeallocateTabId(aCpId, aTabId);
   } else {
     ContentChild::GetSingleton()->SendDeallocateTabId(aTabId, aCpId,
                                                       aMarkedDestroying);

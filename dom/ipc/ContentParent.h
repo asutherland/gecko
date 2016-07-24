@@ -674,6 +674,14 @@ private:
   };
 
   /**
+   * Ask the ContentProcessManager if there's any reason for us to stay alive.
+   * If not, asynchronously schedule a call to ShutDownProcess.  Exists because
+   * we need to consider this when tabs are destroyed as well as when shared or
+   * service workers are destroyed.
+   */
+  void MaybeShutDown();
+
+  /**
    * Exit the subprocess and vamoose.  After this call IsAlive()
    * will return false and this ContentParent will not be returned
    * by the Get*() funtions.  However, the shutdown sequence itself

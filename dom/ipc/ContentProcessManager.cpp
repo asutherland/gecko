@@ -333,6 +333,20 @@ ContentProcessManager::GetTopLevelTabParentByProcessAndTabId(const ContentParent
   return GetTabParentByProcessAndTabId(currentCpId, currentTabId);
 }
 
+bool
+ContentProcessManager::ContentProcessHasLiveChildren(const ContentParentId& aChildCpId)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  auto iter = mContentParentMap.find(aChildCpId);
+  if (NS_WARN_IF(iter == mContentParentMap.end())) {
+    ASSERT_UNLESS_FUZZING();
+    return false;
+  }
+
+  return iter->second.mRemoteFrames.size() > 0;
+}
+
 nsTArray<TabId>
 ContentProcessManager::GetTabParentsByProcessId(const ContentParentId& aChildCpId)
 {
