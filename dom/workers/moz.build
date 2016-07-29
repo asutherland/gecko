@@ -91,6 +91,7 @@ UNIFIED_SOURCES += [
 IPDL_SOURCES += [
     'PServiceWorkerManager.ipdl',
     'ServiceWorkerRegistrarTypes.ipdlh',
+    'PWorker.ipdl',
 ]
 
 LOCAL_INCLUDES += [

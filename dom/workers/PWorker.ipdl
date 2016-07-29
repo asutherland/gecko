@@ -1,0 +1,28 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/**
+ * PContent-managed protocol for holding alive and dispatching events to
+ * SharedWorker and ServiceWorkers from the parent process.  These worker types
+ * exist in global namespaces with reuse, so the parent process needs a way to
+ * talk to them.  They are managed at a low-level by the RemoteWorkerService,
+ * with the ServiceWorkerManager handling the higher-level logic for
+ * ServiceWorkers.  (And SharedWorkers are simple enough that we just have the
+ * PSharedWorkerManager-implementing SharedWorkerManagerParent just directly
+ * access RemoteWorkerService.)
+ *
+ * DedicatedWorkers don't need this support because they are only known to their
+ * creators via direct handle.  They can become exposed to other globals by use
+ * of MessagePorts and BroadcastChannels, but those are all handled via
+ * PMessagePort and PBroadcastChannel.  (And the WorkerDebuggerManager handles
+ * exposing them globally for debugging purposes.)
+ */
+protocol PWorker
+{
+  manager PContent;
+
+parent:
+
+child:
+}
