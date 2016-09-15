@@ -21,6 +21,7 @@ namespace dom {
 namespace workers {
 
 class ServiceWorkerInfo;
+class ServiceWorkerInstanceParent;
 class ServiceWorkerRegistrationInfo;
 class KeepAliveToken;
 
@@ -65,6 +66,8 @@ public:
 class ServiceWorkerPrivate final : public nsIObserver
 {
   friend class KeepAliveToken;
+  // So it can notify us when it's dying and so it can see our mInfo.
+  friend class ServiceWorkerInstanceParent;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -194,6 +197,15 @@ private:
                       nsIRunnable* aLoadFailedRunnable,
                       nsILoadGroup* aLoadGroup = nullptr);
 
+  /**
+   * Synchronously-invoked notification from
+   * ServiceWorkerInstanceParent::ActorDestroy that its instance is going away
+   * and we must drop our (non-owning) reference to it.  The instant parent
+   * is responsible for rejecting all
+   */
+  void
+  ServiceWorkerInstanceDestroyed(ServiceWorkerInstanceParent* aInstance);
+
   ~ServiceWorkerPrivate();
 
   already_AddRefed<KeepAliveToken>
@@ -203,6 +215,22 @@ private:
   // of time if there are pending waitUntil promises, in which case it
   // will be null and |SpawnWorkerIfNeeded| will always fail.
   ServiceWorkerInfo* MOZ_NON_OWNING_REF mInfo;
+
+  // The remote ServiceWorkerInstance that services our events.  This replaces
+  // the prior locally-hosted WorkerPrivate that we used to have and has the
+  // same lifecycle.  Namely, we create it on demand and terminate it when the
+  // events go away/timeout and all idle timers are exhausted.  All of that
+  // tracking is done locally by us and we are the ones that decide when to
+  // terminate the instance.
+  //
+  // It will never self-terminate, although its hosting process may crash and
+  // shutdown of the ServiceWorkerManager will trigger shutdown of its
+  // containing process regardless of our desires.
+  //
+  // We drop the reference after calling Terminate or when the instance
+  // invokes ServiceWorkerInstanceDestroyed on us.  These are likewise the
+  // conditions when it will drop its reference to us.
+  ServiceWorkerInstanceParent* MOZ_NON_OWNING_REF mServiceWorkerInstance;
 
   // The WorkerPrivate object can only be closed by this class or by the
   // RuntimeService class if gecko is shutting down. Closing the worker

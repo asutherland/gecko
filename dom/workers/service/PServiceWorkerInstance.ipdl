@@ -1,0 +1,55 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+include protocol PContent;
+include protocol PServiceWorkerEvent;
+
+include ServiceWorkerEventTypes;
+
+namespace mozilla {
+namespace dom {
+
+/**
+ * Used by the ServiceWorkerManager to spawn a placeholder for a specific
+ * version of a service worker in a (child) content process and dispatch events
+ * to be serviced to it.
+ *
+ * By placeholder, we mean that the actual worker thread may not always exist.
+ * (Given the nature of service workers, they are intended to be spawned and
+ * terminated as needed.)  The decision on when to spawn and terminate the
+ * worker thread is made by the child as long as it is alive.  If the parent
+ * wants to explicitly terminate the worker, it should delete the actor.
+ */
+protocol PServiceWorkerInstance
+{
+  manager PContent;
+  manages PServiceWorkerEvent;
+
+parent:
+  /**
+   * Report an error that occurred to the parent process so that the
+   * ServiceWorkerManager can propagate the error to all affected clients.
+   *
+   * Errors are not scoped to specific events because events can interact with
+   * each other or be impacted by earlier startup problems, etc.  We err on the
+   * side of reporting too much information to impacted consoles.
+   *
+   * TODO: Create the actual error type.  Some fields like scope and principal
+   * are implicit from the instance.  The other fields need to be provided.
+   * ServiceWorkerManager and WorkerPrivate don't use any aggregate type,
+   * instead having exploded everything out.  Using ErrorResult on its own is
+   * insufficient since we either get (rv, string) for DOMExceptionInfo or
+   * (string[], errnum) for Message, which misses the filename/line/flags
+   * metadata.
+   */
+  async ReportError();
+
+child:
+  async PServiceWorkerEvent(ServiceWorkerEventArgs args);
+
+  async __delete__();
+};
+
+} // namespace dom
+} // namespace mozilla

@@ -811,6 +811,10 @@ private:
 
   virtual bool DeallocPTestShellParent(PTestShellParent* shell) override;
 
+  virtual PServiceWorkerInstanceParent* AllocPServiceWorkerInstanceParent(const ServiceWorkerInstanceConfig& aConfig) override;
+
+  virtual bool DeallocPServiceWorkerInstanceParent(PServiceWorkerInstanceParent* aActor) override;
+
   virtual bool DeallocPNeckoParent(PNeckoParent* necko) override;
 
   virtual PPSMContentDownloaderParent*

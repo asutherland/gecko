@@ -37,6 +37,7 @@
 #include "mozilla/dom/StorageIPC.h"
 #include "mozilla/dom/TabGroup.h"
 #include "mozilla/dom/workers/ServiceWorkerManager.h"
+#include "mozilla/dom/workers/service/ServiceWorkerInstanceGlue.h"
 #include "mozilla/dom/nsIContentChild.h"
 #include "mozilla/dom/URLClassifierChild.h"
 #include "mozilla/dom/ipc/BlobChild.h"
@@ -2449,6 +2450,25 @@ ContentChild::RecvInitServiceWorkers(const ServiceWorkerConfiguration& aConfig)
   RefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
   MOZ_ASSERT(swm);
   swm->LoadRegistrations(aConfig.serviceWorkerRegistrations());
+  return IPC_OK();
+}
+
+PServiceWorkerInstanceChild *
+AllocPServiceWorkerInstanceChild(const ServiceWorkerInstanceConfig& aConfig)
+{
+  return AllocServiceWorkerInstanceChild(aConfig);
+}
+
+bool
+DeallocPServiceWorkerInstanceChild(PServiceWorkerInstanceChild* aActor)
+{
+  return DeallocServiceWorkerInstanceChild(aActor);
+}
+
+mozilla::ipc::IPCResult
+RecvPServiceWorkerInstanceConstructor(PServiceWorkerInstanceChild* aActor,
+                                      const ServiceWorkerInstanceConfig& aConfig)
+{
   return IPC_OK();
 }
 

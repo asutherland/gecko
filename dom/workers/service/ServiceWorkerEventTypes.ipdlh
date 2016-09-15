@@ -1,0 +1,69 @@
+/* -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 8 -*- */
+/* vim: set sw=4 ts=8 et tw=80 ft=cpp : */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+include PBackgroundSharedTypes;
+include DOMTypes;
+include FetchTypes;
+
+namespace mozilla {
+namespace dom {
+
+struct ServiceWorkerEvaluateScriptEventArgs {
+
+};
+
+struct ServiceWorkerInstallEventArgs {
+
+};
+
+struct ServiceWorkerActivateEventArgs {
+
+};
+
+struct ServiceWorkerFetchEventArgs {
+  IPCInternalRequest request;
+};
+
+struct ServiceWorkerPostMessageEventArgs {
+  ClonedMessageData messageData;
+};
+
+union ServiceWorkerEventArgs {
+  ServiceWorkerEvaluateScriptEventArgs;
+  ServiceWorkerInstallEventArgs;
+  ServiceWorkerActivateEventArgs;
+  ServiceWorkerFetchEventArgs;
+};
+
+struct ServiceWorkerEvaluateScriptEventResult {
+
+};
+
+struct ServiceWorkerInstallEventResult {
+
+};
+
+struct ServiceWorkerActivateEventResult {
+
+};
+
+struct ServiceWorkerFetchEventResult {
+};
+
+struct ServiceWorkerPostMessageEventResult {
+
+};
+
+union ServiceWorkerEventResult {
+  ServiceWorkerEvaluateScriptEventResult;
+  ServiceWorkerInstallEventResult;
+  ServiceWorkerActivateEventResult;
+  ServiceWorkerFetchEventResult;
+  ServiceWorkerPostMessageEventResult;
+};
+
+} // namespace dom
+} // namespace mozilla

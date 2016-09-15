@@ -4,6 +4,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DIRS += [
+    'service',
+]
+
 # Public stuff.
 EXPORTS.mozilla.dom += [
     'FileReaderSync.h',
@@ -93,6 +97,7 @@ IPDL_SOURCES += [
 LOCAL_INCLUDES += [
     '../base',
     '../system',
+    './service',
     '/dom/base',
     '/xpcom/build',
     '/xpcom/threads',

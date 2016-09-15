@@ -20,6 +20,8 @@
 #include "nsQueryObject.h"
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
+#include "ServiceWorkerInstanceParent.h"
+#include "ServiceWorkerInstanceSpawner.h"
 #include "WorkerRunnable.h"
 #include "WorkerScope.h"
 #include "mozilla/Assertions.h"
@@ -1866,6 +1868,18 @@ ServiceWorkerPrivate::SpawnWorkerIfNeeded(WakeUpReason aWhy,
   RenewKeepAliveToken(aWhy);
 
   return NS_OK;
+}
+
+void
+ServiceWorkerPrivate::ServiceWorkerInstanceDestroyed(
+  ServiceWorkerInstanceParent* aInstance)
+{
+  if (!mServiceWorkerInstance) {
+    return;
+  }
+
+  MOZ_ASSERT(mServiceWorkerInstance == aInstance);
+  mServiceWorkerInstance = nullptr;
 }
 
 void

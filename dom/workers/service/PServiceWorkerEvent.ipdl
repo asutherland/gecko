@@ -1,0 +1,41 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+include protocol PServiceWorkerInstance;
+
+include FetchTypes;
+include ServiceWorkerEventTypes;
+
+namespace mozilla {
+namespace dom {
+
+/**
+ * Actor covering all events explicity dispatched to PServiceWorkerInstances.
+ * ExtendableEvents are deleted with the final result when they are no longer
+ * extendable.  Non-extendable events are deleted after they dispatch.  Errors
+ * other than the result of an event are reported via PServiceWorkerInstance.
+ */
+protocol PServiceWorkerEvent
+{
+  manager PServiceWorkerInstance;
+
+parent:
+  /**
+   * Send fetch's respondWith populated response to the parent when it has
+   * resolved.  Because respondWith() is defined to invoke waitUntil(), the
+   * extendable event will strictly outlive us and there is no ordering problem
+   * with our use of __delete__.
+   */
+  async FetchEventRespondWith(IPCInternalResponse aResponse);
+
+  /**
+   * ExtendableEvents are deleted when they are no longer extendable.
+   */
+  async __delete__(ServiceWorkerEventResult aResult);
+
+//child:
+};
+
+} // namespace dom
+} // namespace mozilla

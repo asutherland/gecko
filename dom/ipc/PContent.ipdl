@@ -38,6 +38,8 @@ include protocol PSendStream;
 include protocol POfflineCacheUpdate;
 include protocol PRenderFrame;
 include protocol PScreenManager;
+include protocol PServiceWorkerInstance;
+include protocol PSharedBufferManager;
 include protocol PSpeechSynthesis;
 include protocol PStorage;
 include protocol PTestShell;
@@ -60,6 +62,7 @@ include ProtocolTypes;
 include PBackgroundSharedTypes;
 include PContentPermission;
 include ServiceWorkerConfiguration;
+include ServiceWorkerInstanceTypes;
 include GraphicsMessages;
 include ProfilerTypes;
 
@@ -369,6 +372,7 @@ nested(upto inside_cpow) sync protocol PContent
     manages POfflineCacheUpdate;
     manages PPrinting;
     manages PSendStream;
+    manages PServiceWorkerInstance;
     manages PScreenManager;
     manages PSpeechSynthesis;
     manages PStorage;
@@ -519,6 +523,12 @@ child:
      * Send ServiceWorkerRegistrationData to child process.
      */
     async InitServiceWorkers(ServiceWorkerConfiguration aConfig);
+
+    /**
+     * Spin up a remote service worker instance in this child process, owned by
+     * by the ServiceWorkerManager in the parent process.
+     */
+    async PServiceWorkerInstance(ServiceWorkerInstanceConfig aConfig);
 
     /**
      * Send BlobURLRegistrationData to child process.

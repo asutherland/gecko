@@ -66,6 +66,7 @@
 #include "ServiceWorkerClient.h"
 #include "ServiceWorkerContainer.h"
 #include "ServiceWorkerInfo.h"
+#include "ServiceWorkerInstanceSpawner.h"
 #include "ServiceWorkerJobQueue.h"
 #include "ServiceWorkerManagerChild.h"
 #include "ServiceWorkerPrivate.h"
@@ -3554,6 +3555,8 @@ ServiceWorkerManager::Observe(nsISupports* aSubject,
         obs->RemoveObserver(this, CLEAR_ORIGIN_DATA);
       }
     }
+
+    ServiceWorkerInstanceSpawner::Shutdown();
 
     if (mActor) {
       mActor->ManagerShuttingDown();

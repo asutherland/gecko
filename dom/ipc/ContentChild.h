@@ -430,6 +430,16 @@ public:
   virtual mozilla::ipc::IPCResult
   RecvInitServiceWorkers(const ServiceWorkerConfiguration& aConfig) override;
 
+  virtual PServiceWorkerInstanceChild *
+  AllocPServiceWorkerInstanceChild(const ServiceWorkerInstanceConfig& aConfig) override;
+
+  virtual bool
+  DeallocPServiceWorkerInstanceChild(PServiceWorkerInstanceChild* aActor) override;
+
+  virtual mozilla::ipc::IPCResult
+  RecvPServiceWorkerInstanceConstructor(PServiceWorkerInstanceChild* aActor,
+                                        const ServiceWorkerInstanceConfig& aConfig) override;
+
   virtual mozilla::ipc::IPCResult
   RecvInitBlobURLs(nsTArray<BlobURLRegistrationData>&& aRegistations) override;
 

@@ -1,0 +1,33 @@
+# -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+EXPORTS.mozilla.dom.workers.service += [
+    'ServiceWorkerInstanceGlue.h',
+]
+
+UNIFIED_SOURCES += [
+    'ServiceWorkerInstanceChild.cpp',
+    'ServiceWorkerInstanceGlue.cpp',
+    'ServiceWorkerInstanceParent.cpp',
+    'ServiceWorkerInstanceSpawner.cpp',
+]
+
+IPDL_SOURCES += [
+    'PServiceWorkerEvent.ipdl',
+    'PServiceWorkerInstance.ipdl',
+    'ServiceWorkerEventTypes.ipdlh',
+    'ServiceWorkerInstanceTypes.ipdlh',
+]
+
+LOCAL_INCLUDES += [
+  '../../base',
+  '../../system',
+  '/dom/base',
+  '/xpcom/build',
+  '/xpcom/threads',
+]
+
+include('/ipc/chromium/chromium-config.mozbuild')
