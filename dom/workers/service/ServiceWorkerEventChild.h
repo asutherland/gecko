@@ -14,6 +14,8 @@ namespace dom {
 namespace workers {
 
 /**
+ * Home to the runnables/logic for servicing the events; our owning
+ * ServiceWorkerInstanceChild owns the WorkerPrivate.
  */
 class ServiceWorkerEventChild final : public PServiceWorkerEventChild
 {
