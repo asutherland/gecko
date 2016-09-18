@@ -46,7 +46,7 @@ parent:
   async ReportError();
 
 child:
-  async PServiceWorkerEvent(ServiceWorkerEventArgs args);
+  async PServiceWorkerEvent(ServiceWorkerEventArgs aArgs);
 
   async __delete__();
 };

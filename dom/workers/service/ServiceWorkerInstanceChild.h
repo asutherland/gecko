@@ -12,6 +12,12 @@ namespace dom {
 
 namespace workers {
 
+/**
+ * Creates and holds a ServiceWorker WorkerPrivate active for remote events to
+ * be dispatched to it.  The ServiceWorkerEventChild implementation is where the
+ * event arguments are interpreted and converted into the runnables that
+ * interact with the worker thread.
+ */
 class ServiceWorkerInstanceChild final : public PServiceWorkerInstanceChild
 {
 public:
@@ -20,7 +26,7 @@ public:
 private:
   // PServiceWorkerInstance methods
   virtual PServiceWorkerEventChild*
-  AllocPServiceWorkerEventChild(const ServiceWorkerEventArgs& args) override;
+  AllocPServiceWorkerEventChild(const ServiceWorkerEventArgs& aArgs) override;
 
   virtual bool
   DeallocPServiceWorkerEventChild(PServiceWorkerEventChild* aActor) override;

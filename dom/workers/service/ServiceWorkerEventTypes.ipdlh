@@ -11,42 +11,53 @@ include FetchTypes;
 namespace mozilla {
 namespace dom {
 
+/**
+ * Just a check that the JS top level evaluates, the step prior to dispatching
+ * an "install" LifeCycle event.  Corresponds to step 5.7.4 of the update
+ * algorithm.  This is the definitive minimal event; every other event also
+ * triggers evaluation of the script (if it's not already evaluated) before
+ * dispatching an actual event.
+ */
 struct ServiceWorkerEvaluateScriptEventArgs {
 
 };
 
-struct ServiceWorkerInstallEventArgs {
+/**
+ * Covers "install" and "activate" events.
+ *
+ * Note: LifeCycle versus Lifecycle.  This is done quasi-consistently throughout
+ * the codebase.
+ */
+struct ServiceWorkerLifeCycleEventArgs {
 
 };
 
-struct ServiceWorkerActivateEventArgs {
-
-};
-
+/**
+ * Intercepted fetch event.
+ */
 struct ServiceWorkerFetchEventArgs {
   IPCInternalRequest request;
 };
 
+/**
+ * ServiceWorker.postMessage event.
+ */
 struct ServiceWorkerPostMessageEventArgs {
   ClonedMessageData messageData;
 };
 
 union ServiceWorkerEventArgs {
   ServiceWorkerEvaluateScriptEventArgs;
-  ServiceWorkerInstallEventArgs;
-  ServiceWorkerActivateEventArgs;
+  ServiceWorkerLifeCycleEventArgs;
   ServiceWorkerFetchEventArgs;
+  ServiceWorkerPostMessageEventArgs;
 };
 
 struct ServiceWorkerEvaluateScriptEventResult {
 
 };
 
-struct ServiceWorkerInstallEventResult {
-
-};
-
-struct ServiceWorkerActivateEventResult {
+struct ServiceWorkerLifeCyleEventResult {
 
 };
 
@@ -59,8 +70,7 @@ struct ServiceWorkerPostMessageEventResult {
 
 union ServiceWorkerEventResult {
   ServiceWorkerEvaluateScriptEventResult;
-  ServiceWorkerInstallEventResult;
-  ServiceWorkerActivateEventResult;
+  ServiceWorkerLifeCycleEventResult;
   ServiceWorkerFetchEventResult;
   ServiceWorkerPostMessageEventResult;
 };
