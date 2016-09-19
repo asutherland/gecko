@@ -14,7 +14,74 @@ ServiceWorkerInstanceChild::Init(const ServiceWorkerInstanceConfig& aConfig)
 {
   AssertIsOnMainThread();
 
+  // Ensure that the IndexedDatabaseManager is initialized
+  Unused << NS_WARN_IF(!IndexedDatabaseManager::GetOrCreate());
 
+  WorkerLoadInfo info;
+  nsresult rv = NS_NewURI(getter_AddRefs(info.mBaseURI), mInfo->ScriptSpec(),
+                          nullptr, nullptr);
+
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  info.mResolvedScriptURI = info.mBaseURI;
+  MOZ_ASSERT(!mInfo->CacheName().IsEmpty());
+  info.mServiceWorkerCacheName = mInfo->CacheName();
+  info.mServiceWorkerID = mInfo->ID();
+  info.mLoadGroup = aLoadGroup;
+  info.mLoadFailedAsyncRunnable = aLoadFailedRunnable;
+
+  // If we are loading a script for a ServiceWorker then we must not
+  // try to intercept it.  If the interception matches the current
+  // ServiceWorker's scope then we could deadlock the load.
+  info.mLoadFlags = mInfo->GetLoadFlags() |
+                    nsIChannel::LOAD_BYPASS_SERVICE_WORKER;
+
+  rv = info.mBaseURI->GetHost(info.mDomain);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  info.mPrincipal = mInfo->GetPrincipal();
+
+  nsContentUtils::StorageAccess access =
+    nsContentUtils::StorageAllowedForPrincipal(info.mPrincipal);
+  info.mStorageAllowed = access > nsContentUtils::StorageAccess::ePrivateBrowsing;
+  info.mOriginAttributes = mInfo->GetOriginAttributes();
+
+  nsCOMPtr<nsIContentSecurityPolicy> csp;
+  rv = info.mPrincipal->GetCsp(getter_AddRefs(csp));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  info.mCSP = csp;
+  if (info.mCSP) {
+    rv = info.mCSP->GetAllowsEval(&info.mReportCSPViolations,
+                                  &info.mEvalAllowed);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+  } else {
+    info.mEvalAllowed = true;
+    info.mReportCSPViolations = false;
+  }
+
+  WorkerPrivate::OverrideLoadInfoLoadGroup(info);
+
+  AutoJSAPI jsapi;
+  jsapi.Init();
+  ErrorResult error;
+  NS_ConvertUTF8toUTF16 scriptSpec(mInfo->ScriptSpec());
+
+  mWorkerPrivate = WorkerPrivate::Constructor(jsapi.cx(),
+                                              scriptSpec,
+                                              false, WorkerTypeService,
+                                              mInfo->Scope(), &info, error);
+  if (NS_WARN_IF(error.Failed())) {
+    return error.StealNSResult();
+  }
 }
 
 PServiceWorkerEventChild*
