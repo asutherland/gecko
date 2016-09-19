@@ -26,5 +26,40 @@ struct ServiceWorkerInstanceConfig
   PrincipalInfo principal;
 };
 
+/**
+ * Parent-to-child instruction to promptly terminate the worker.  The child
+ * doesn't need to know why so there's no payload.
+ */
+struct SWInstanceParentTriggeredTermination
+{
+};
+
+ /**
+  * Child-to-parent: the instance terminated on its own accord for normal
+  * reasons, like the SW calling close() on itself.
+  */
+ struct SWInstanceExpectedTermination
+ {
+ };
+
+/**
+ * Child-to-parent: something unusual happened like a failure to initialize.
+ * NS_WARNING-worthy.
+ */
+struct SWInstanceUnexpectedTermination
+{
+  nsresult rv;
+};
+
+/**
+ * PServiceWorkerInstance __delete__ bidirectional payload.
+ */
+union SWInstanceTerminationReason
+{
+  SWInstanceParentTriggeredTermination;
+  SWInstanceExpectedTermination;
+  SWInstanceUnexpectedTermination;
+};
+
 } // namespace dom
 } // namespace mozilla

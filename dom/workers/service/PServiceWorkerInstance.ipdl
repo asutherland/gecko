@@ -6,6 +6,7 @@ include protocol PContent;
 include protocol PServiceWorkerEvent;
 
 include ServiceWorkerEventTypes;
+include ServiceWorkerInstanceTypes;
 
 namespace mozilla {
 namespace dom {
@@ -48,7 +49,16 @@ parent:
 child:
   async PServiceWorkerEvent(ServiceWorkerEventArgs aArgs);
 
-  async __delete__();
+both:
+  /**
+   * Normally, we expect deletion to be "child:" as the SW lifecycle is that the
+   * parent ServiceWorkerPrivate decides to terminate the ServiceWorker.
+   * However, in the case of the SW calling close() (it's exposed on
+   * WorkerGlobalScope, which ServiceWorkerGlobalScope inherits from) or a
+   * failure to initialize occurs/other exceptional situation, deletion may be
+   * "parent:".
+   */
+  async __delete__(SWInstanceTerminationReason aReason);
 };
 
 } // namespace dom

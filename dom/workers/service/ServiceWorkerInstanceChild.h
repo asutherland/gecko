@@ -21,7 +21,8 @@ namespace workers {
 class ServiceWorkerInstanceChild final : public PServiceWorkerInstanceChild
 {
 public:
-
+  void
+  Init(const ServiceWorkerInstanceConfig& aConfig);
 
 private:
   // PServiceWorkerInstance methods
@@ -37,6 +38,12 @@ private:
   // XXX ipdl generated stuffs
   MOZ_IMPLICIT ServiceWorkerInstanceChild();
   virtual ~ServiceWorkerInstanceChild();
+
+  // The WorkerPrivate object can only be closed by this class or by the
+  // RuntimeService class if gecko is shutting down. Closing the worker
+  // multiple times is OK, since the second attempt will be a no-op.
+  RefPtr<WorkerPrivate> mWorkerPrivate;
+
 };
 
 } // namespace workers

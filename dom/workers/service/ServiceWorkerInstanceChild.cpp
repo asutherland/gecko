@@ -9,6 +9,14 @@ using namespace mozilla::dom;
 
 BEGIN_WORKERS_NAMESPACE
 
+void
+ServiceWorkerInstanceChild::Init(const ServiceWorkerInstanceConfig& aConfig)
+{
+  AssertIsOnMainThread();
+
+
+}
+
 PServiceWorkerEventChild*
 ServiceWorkerInstanceChild::AllocPServiceWorkerEventChild(
   const ServiceWorkerEventArgs& aArgs)

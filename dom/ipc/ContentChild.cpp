@@ -2469,7 +2469,7 @@ mozilla::ipc::IPCResult
 RecvPServiceWorkerInstanceConstructor(PServiceWorkerInstanceChild* aActor,
                                       const ServiceWorkerInstanceConfig& aConfig)
 {
-  return IPC_OK();
+  return InitServiceWorkerInstanceChild(aActor, aConfig);
 }
 
 mozilla::ipc::IPCResult

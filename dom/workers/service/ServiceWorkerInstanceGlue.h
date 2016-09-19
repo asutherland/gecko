@@ -27,6 +27,10 @@ AllocServiceWorkerInstanceChild(const ServiceWorkerInstanceConfig& aConfig);
 bool
 DeallocServiceWorkerInstanceChild(PServiceWorkerInstanceChild* aActor);
 
+mozilla::ipc::IPCResult
+InitServiceWorkerInstanceChild(PServiceWorkerInstanceChild* aActor,
+                               const ServiceWorkerInstanceConfig& aConfig);
+
 PServiceWorkerInstanceParent *
 AllocServiceWorkerInstanceParent();
 

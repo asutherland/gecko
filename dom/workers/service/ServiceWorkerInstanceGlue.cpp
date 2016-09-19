@@ -25,6 +25,19 @@ DeallocServiceWorkerInstanceChild(PServiceWorkerInstanceChild* aActor)
   return true;
 }
 
+mozilla::ipc::IPCResult
+InitServiceWorkerInstanceChild(PServiceWorkerInstanceChild* aActor,
+                               const ServiceWorkerInstanceConfig& aConfig)
+{
+  auto actor = static_cast<ServiceWorkerInstanceChild*>(aActor);
+
+  if (!actor->Init(aArgs)) {
+    FetchDispatchChild::Send__delete__(actor, FetchDispatchCanceled(NS_ERROR_FAILURE));
+  }
+
+  return IPC_OK();
+}
+
 PServiceWorkerInstanceParent *
 AllocServiceWorkerInstanceParent()
 {
