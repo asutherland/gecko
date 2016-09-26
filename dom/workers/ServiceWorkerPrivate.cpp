@@ -135,6 +135,23 @@ public:
 } // anonymous namespace
 
 nsresult
+ServiceWorkerPrivate::CheckScriptEvaluation(LifeCycleEventCallback* aCallback)
+{
+  nsresult rv = SpawnWorkerIfNeeded(LifeCycleEvent, nullptr);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  RefPtr<KeepAliveToken> token = CreateEventKeepAliveToken();
+  RefPtr<WorkerRunnable> r = new CheckScriptEvaluationWithCallback(mWorkerPrivate,
+                                                                   token,
+                                                                   aCallback);
+  if (NS_WARN_IF(!r->Dispatch())) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+nsresult
 ServiceWorkerPrivate::SendLifeCycleEvent(const nsAString& aEventType,
                                          LifeCycleEventCallback* aCallback,
                                          nsIRunnable* aLoadFailure)
