@@ -9,16 +9,20 @@ using namespace mozilla::dom;
 
 BEGIN_WORKERS_NAMESPACE
 
-void
+NS_IMPL_ISUPPORTS0(ServiceWorkerInstanceChild)
+
+nsresult
 ServiceWorkerInstanceChild::Init(const ServiceWorkerInstanceConfig& aConfig)
 {
   AssertIsOnMainThread();
 
+  // TODO: See if this cargo-culted main-thread initialization is really needed.
   // Ensure that the IndexedDatabaseManager is initialized
   Unused << NS_WARN_IF(!IndexedDatabaseManager::GetOrCreate());
 
   WorkerLoadInfo info;
-  nsresult rv = NS_NewURI(getter_AddRefs(info.mBaseURI), mInfo->ScriptSpec(),
+  nsresult rv = NS_NewURI(getter_AddRefs(info.mBaseURI),
+                          aConfig.currentWorkerURL(),
                           nullptr, nullptr);
 
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -26,11 +30,11 @@ ServiceWorkerInstanceChild::Init(const ServiceWorkerInstanceConfig& aConfig)
   }
 
   info.mResolvedScriptURI = info.mBaseURI;
-  MOZ_ASSERT(!mInfo->CacheName().IsEmpty());
-  info.mServiceWorkerCacheName = mInfo->CacheName();
-  info.mServiceWorkerID = mInfo->ID();
-  info.mLoadGroup = aLoadGroup;
-  info.mLoadFailedAsyncRunnable = aLoadFailedRunnable;
+  info.mServiceWorkerCacheName = aConfig.cacheName();
+  info.mServiceWorkerID = aConfig.instanceID();
+
+  info.mLoadFailedAsyncRunnable =
+    NewRunnableMethod(this, &ServiceWorkerInstanceChild::WorkerLoadFailed);
 
   // If we are loading a script for a ServiceWorker then we must not
   // try to intercept it.  If the interception matches the current
@@ -43,7 +47,7 @@ ServiceWorkerInstanceChild::Init(const ServiceWorkerInstanceConfig& aConfig)
     return rv;
   }
 
-  info.mPrincipal = mInfo->GetPrincipal();
+  info.mPrincipal = PrincipalInfoToPrincipal(aConfig.principal());
 
   nsContentUtils::StorageAccess access =
     nsContentUtils::StorageAllowedForPrincipal(info.mPrincipal);
@@ -68,6 +72,10 @@ ServiceWorkerInstanceChild::Init(const ServiceWorkerInstanceConfig& aConfig)
     info.mReportCSPViolations = false;
   }
 
+  // OverrideLoadInfoLoadGroup creates a LoadGroup for us.  We didn't initialize
+  // mLoadGroup because it would only be used for nsINetworkInterceptController,
+  // a concept that is going away.  (And also irrelevant for ServiceWorkers
+  // since their fetches and loads are not subject to interception.)
   WorkerPrivate::OverrideLoadInfoLoadGroup(info);
 
   AutoJSAPI jsapi;
@@ -111,6 +119,12 @@ ServiceWorkerInstanceChild::RecvPServiceWorkerEventChildConstructor(
   PServiceWorkerEventChild* aActor, const ServiceWorkerEventArgs &aArgs)
 {
   return true;
+}
+
+void
+ServiceWorkerInstanceChild::ActorDestroy(ActorDestroyReason aWhy)
+{
+  mActorDestroyed = true;
 }
 
 MOZ_IMPLICIT ServiceWorkerInstanceChild::ServiceWorkerInstanceChild()

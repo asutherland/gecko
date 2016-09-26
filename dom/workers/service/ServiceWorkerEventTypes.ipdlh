@@ -57,7 +57,7 @@ struct ServiceWorkerEvaluateScriptEventResult {
 
 };
 
-struct ServiceWorkerLifeCyleEventResult {
+struct ServiceWorkerLifeCycleEventResult {
 
 };
 

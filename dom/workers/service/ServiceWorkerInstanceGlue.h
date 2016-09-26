@@ -8,8 +8,8 @@
 #define mozilla_dom_workers_service_ServiceWorkerInstanceGlue_h
 
 /**
- *
- *
+ * Exposure of ServiceWorkerInstance{Parent,Child} to PContent and its
+ * Content{Parent,Child} implementations.
  **/
 
 namespace mozilla {

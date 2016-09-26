@@ -15,13 +15,15 @@ namespace dom {
 PServiceWorkerInstanceChild*
 AllocServiceWorkerInstanceChild(const ServiceWorkerInstanceConfig& aConfig)
 {
-  return new ServiceWorkerInstanceChild(aConfig);
+  nsRefPtr<ServiceWorkerInstanceChild*> actor =
+    new ServiceWorkerInstanceChild(aConfig);
+  return actor.forget();
 }
 
 bool
 DeallocServiceWorkerInstanceChild(PServiceWorkerInstanceChild* aActor)
 {
-  delete aActor;
+  NS_RELEASE(static_cast<ServiceWorkerInstanceChild*>(aActor));
   return true;
 }
 
@@ -31,8 +33,10 @@ InitServiceWorkerInstanceChild(PServiceWorkerInstanceChild* aActor,
 {
   auto actor = static_cast<ServiceWorkerInstanceChild*>(aActor);
 
-  if (!actor->Init(aArgs)) {
-    FetchDispatchChild::Send__delete__(actor, FetchDispatchCanceled(NS_ERROR_FAILURE));
+  nsresult rv = actor->Init(aArgs);
+  if (NS_FAILED(rv)) {
+    ServiceWorkerInstanceChild::Send__delete__(
+      actor, SWInstanceUnexpectedTermination(rv));
   }
 
   return IPC_OK();
