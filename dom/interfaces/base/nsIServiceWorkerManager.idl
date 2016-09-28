@@ -43,8 +43,23 @@ interface nsIServiceWorkerInfo : nsISupports
 
   readonly attribute unsigned short state;
 
-  readonly attribute nsIWorkerDebugger debugger;
+  // TODO: This being useful depend on the attachDebugger/detachDebugger TODO.
+  // Process-wide, non-restart-surviving unique identifier that can be used to
+  // find our debugger instance in child processes.
+  readonly attribute unsigned long serviceWorkerID;
 
+  // TODO: implement things so this comment becomes real.
+  // Indicate desire to attach a debugger to the ServiceWorker's thread and keep
+  // it alive until a matching call to detachDebugger is made.  If no SW thread
+  // is currently active, one will be spun up in a content process.  If one is
+  // already spun up, it will be kept alive.
+  //
+  // FURTHER TODO: Reach consensus on the best way to make the nsIWorkerDebugger
+  // available to devtools.  The interface is simple enough to be remoted, but
+  // it's also the case that devtools' modules/worker.js already enumerates all
+  // the workers in the child processes.  So as long as we're registering our SW
+  // debugger, it'll be found.  We just to make sure we expose the id that's
+  // exposed as "unsigned long serviceWorkerID" on nsIWorkerDebugger.
   void attachDebugger();
 
   void detachDebugger();
