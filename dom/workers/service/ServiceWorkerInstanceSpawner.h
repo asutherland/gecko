@@ -19,6 +19,8 @@ class ContentParent;
 
 namespace workers {
 
+class ServiceWorkerPrivate;
+
 /**
  * Static API for ServiceWorkerPrivates to spawn instances in our
  * dedicated-for-serviceworkers child content process.  In the future multiple
@@ -59,11 +61,8 @@ public:
   * This method will fail and return a null parent if Shutdown() has already
   * been invoked.
   */
-  static already_AddRefed<ServiceWorkerInstanceParent>
-  SpawnInstance(nsIPrincipal* aPrincipal,
-                const nsACString& aScope,
-                const nsACString& aScriptSpec,
-                const nsAString& aCacheName);
+  static ServiceWorkerInstanceParent*
+  SpawnInstance(ServiceWorkerPrivate* aOwner);
 
   /**
    * Called by ServiceWorkerManager during shutdown to indicate that the
@@ -92,11 +91,8 @@ private:
    * Actual implementation of our static SpawnInstance; the static one just
    * avoids singleton-related boilerplate for the caller.
    */
-  already_AddRefed<ServiceWorkerInstanceParent>
-  Spawn(nsIPrincipal* aPrincipal,
-        const nsACString& aScope,
-        const nsACString& aScriptSpec,
-        const nsAString& aCacheName);
+  ServiceWorkerInstanceParent*
+  Spawn(ServiceWorkerPrivate* aOwner);
 
   /**
    * Shutdown the ContentParent if we have one.

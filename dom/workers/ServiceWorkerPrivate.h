@@ -37,17 +37,19 @@ public:
 // service workers. It handles all event dispatching to the worker and ensures
 // the worker thread is running when needed.
 //
-// Lifetime management: To spin up the worker thread we own a |WorkerPrivate|
-// object which can be cancelled if no events are received for a certain
-// amount of time. The worker is kept alive by holding a |KeepAliveToken|
-// reference.
+// Lifetime management: To spin up the worker thread in a child content process
+// we create and own a |ServiceWorkerInstanceParent| object which can be
+// terminated if no events are received for a certain amount of time. The worker
+// is kept alive by holding a |KeepAliveToken| reference.
 //
 // Extendable events hold tokens for the duration of their handler execution
 // and until their waitUntil promise is resolved, while ServiceWorkerPrivate
 // will hold a token for |dom.serviceWorkers.idle_timeout| seconds after each
 // new event.
 //
-// Note: All timer events must be handled on the main thread because the
+// Note: Timers are tracked here in the parent process rather than in the
+// content process so there is only one place that decides whether the specific
+// worker instances should be alive or not.tAll timer events must be handled on the main thread because the
 // worker may block indefinitely the worker thread (e. g. infinite loop in the
 // script).
 //
@@ -144,6 +146,7 @@ public:
   nsresult
   GetDebugger(nsIWorkerDebugger** aResult);
 
+
   nsresult
   AttachDebugger();
 
@@ -178,8 +181,10 @@ private:
   static void
   TerminateWorkerCallback(nsITimer* aTimer, void *aPrivate);
 
+  // Reset the idle timeout if appropriate.  Invoked by SpawnWorkerIfNeeded
+  // which is invoked whenever a new event is about to be dispatched.
   void
-  RenewKeepAliveToken(WakeUpReason aWhy);
+  RenewIdleKeepAliveToken(WakeUpReason aWhy);
 
   void
   ResetIdleTimeout();
@@ -190,19 +195,17 @@ private:
   void
   ReleaseToken();
 
-  // |aLoadFailedRunnable| is a runnable dispatched to the main thread
-  // if the script loader failed for some reason, but can be null.
+  // Ensure mServiceWorkerInstance is valid and capable of sending messages,
+  // returning failure if not.  Renews the idle keepalive token as a side
+  // effect.
   nsresult
-  SpawnWorkerIfNeeded(WakeUpReason aWhy,
-                      nsIRunnable* aLoadFailedRunnable,
-                      nsILoadGroup* aLoadGroup = nullptr);
+  SpawnWorkerIfNeeded(WakeUpReason aWhy);
 
-  /**
-   * Synchronously-invoked notification from
-   * ServiceWorkerInstanceParent::ActorDestroy that its instance is going away
-   * and we must drop our (non-owning) reference to it.  The instant parent
-   * is responsible for rejecting all
-   */
+
+  // Synchronously-invoked notification from
+  // ServiceWorkerInstanceParent::ActorDestroy that its instance is going away
+  // and we must drop our (non-owning) reference to it.  The events will
+  // auto-fail themselves.
   void
   ServiceWorkerInstanceDestroyed(ServiceWorkerInstanceParent* aInstance);
 
@@ -231,11 +234,6 @@ private:
   // invokes ServiceWorkerInstanceDestroyed on us.  These are likewise the
   // conditions when it will drop its reference to us.
   ServiceWorkerInstanceParent* MOZ_NON_OWNING_REF mServiceWorkerInstance;
-
-  // The WorkerPrivate object can only be closed by this class or by the
-  // RuntimeService class if gecko is shutting down. Closing the worker
-  // multiple times is OK, since the second attempt will be a no-op.
-  RefPtr<WorkerPrivate> mWorkerPrivate;
 
   nsCOMPtr<nsITimer> mIdleWorkerTimer;
 

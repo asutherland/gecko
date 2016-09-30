@@ -12,11 +12,26 @@ namespace mozilla {
 namespace dom {
 
 /**
- * Just a check that the JS top level evaluates, the step prior to dispatching
- * an "install" LifeCycle event.  Corresponds to step 5.7.4 of the update
- * algorithm.  This is the definitive minimal event; every other event also
- * triggers evaluation of the script (if it's not already evaluated) before
- * dispatching an actual event.
+ * Evaluate the ServiceWorker script for caching side-effects while verifying
+ * that the JS top level evaluates.  AKA the step prior to dispatching an
+ * "install" LifeCycle event.  Corresponds to step 5.7.4 of the update
+ * algorithm.
+ *
+ * Regarding caching side-effects, the ServiceWorkerScriptCache mechanism used
+ * by the update/register job types only operates on the (root/entrypoint)
+ * ServiceWorker script.  The DOM CacheStorage will contain only the new single
+ * script file.  (In non-module mode) It is up to the ScriptLoaderRunnable to
+ * first check the cache for each importScripts request and failover to the
+ * network if it's not found, simultaneously saving the result as it is
+ * evaluated.  The net result is that as long as the imports all occur
+ * unconditionally at the top-level, the ServiceWorker and its dependencies will
+ * be fully offlined when this event completes.  And future events can largely
+ * expect that their events will not experience transport failures or top level
+ * evaluation failures.
+ *
+ * Otherwise, this is conceptually the definitive minimal event; every other
+ * event also triggers evaluation of the script (if it's not already evaluated)
+ * before dispatching an actual event.
  */
 struct ServiceWorkerEvaluateScriptEventArgs {
 

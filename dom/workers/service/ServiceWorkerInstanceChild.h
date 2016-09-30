@@ -27,12 +27,20 @@ namespace workers {
  * pointer to our instance rather than a mActorDestroyed boolean, but we gain
  * little from the extra indirection.)
  */
-class ServiceWorkerInstanceChild final : public PServiceWorkerInstanceChild,
-                                         public nsISupports
+class ServiceWorkerInstanceChild final : public PServiceWorkerInstanceChild
+                                       , public nsISupports
 {
 public:
   void
   Init(const ServiceWorkerInstanceConfig& aConfig);
+
+  // For use by ServiceWorkerEventChild
+  class WorkerPrivate*
+  WorkerPrivate() const
+  {
+    MOZ_ASSERT(mWorkerPrivate);
+    return mWorkerPrivate;
+  }
 
 private:
   // PServiceWorkerInstance methods

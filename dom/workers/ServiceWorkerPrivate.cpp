@@ -32,6 +32,7 @@
 #include "mozilla/dom/PromiseNativeHandler.h"
 #include "mozilla/dom/PushEventBinding.h"
 #include "mozilla/dom/RequestBinding.h"
+#include "mozilla/ipc/BackgroundUtils.h"
 #include "mozilla/Unused.h"
 
 using namespace mozilla;
@@ -139,6 +140,12 @@ ServiceWorkerPrivate::CheckScriptEvaluation(LifeCycleEventCallback* aCallback)
 {
   nsresult rv = SpawnWorkerIfNeeded(LifeCycleEvent, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  ServiceWorkerEventArgs args(ServiceWorkerEvaluateScriptEventArgs());
+
+
+  PServiceWorkerEventParent* actor = new ServiceWorkerEventParent(aCallback);
+  mServiceWorkerInstance->SendPServiceWorkerEventConstructor(actor, args);
 
   RefPtr<KeepAliveToken> token = CreateEventKeepAliveToken();
   RefPtr<WorkerRunnable> r = new CheckScriptEvaluationWithCallback(mWorkerPrivate,
@@ -392,9 +399,7 @@ ServiceWorkerPrivate::SendFetchEvent(nsIInterceptedChannel* aChannel,
 }
 
 nsresult
-ServiceWorkerPrivate::SpawnWorkerIfNeeded(WakeUpReason aWhy,
-                                          nsIRunnable* aLoadFailedRunnable,
-                                          nsILoadGroup* aLoadGroup)
+ServiceWorkerPrivate::SpawnWorkerIfNeeded(WakeUpReason aWhy)
 {
   AssertIsOnMainThread();
 
@@ -404,9 +409,8 @@ ServiceWorkerPrivate::SpawnWorkerIfNeeded(WakeUpReason aWhy,
   // the overriden load group when intercepting a fetch.
   MOZ_ASSERT_IF(aWhy == FetchEvent, aLoadGroup);
 
-  if (mWorkerPrivate) {
-    mWorkerPrivate->UpdateOverridenLoadGroup(aLoadGroup);
-    RenewKeepAliveToken(aWhy);
+  if (mServiceWorkerInstance) {
+    RenewIdleKeepAliveToken(aWhy);
 
     return NS_OK;
   }
@@ -420,9 +424,15 @@ ServiceWorkerPrivate::SpawnWorkerIfNeeded(WakeUpReason aWhy,
     return NS_ERROR_FAILURE;
   }
 
+  mServiceWorkerInstance = ServiceWorkerInstanceSpawner::SpawnInstance(this);
+  if (!mServiceWorkerInstance) {
+    NS_WARNING("Failed to spawn remote ServiceWorker instance.");
+    return NS_ERROR_FAILURE;
+  }
+
   // TODO(catalinb): Bug 1192138 - Add telemetry for service worker wake-ups.
 
-  RenewKeepAliveToken(aWhy);
+  RenewIdleKeepAliveToken(aWhy);
 
   return NS_OK;
 }
@@ -635,7 +645,7 @@ ServiceWorkerPrivate::TerminateWorkerCallback(nsITimer* aTimer, void *aPrivate)
 }
 
 void
-ServiceWorkerPrivate::RenewKeepAliveToken(WakeUpReason aWhy)
+ServiceWorkerPrivate::RenewIdleKeepAliveToken(WakeUpReason aWhy)
 {
   // We should have an active worker if we're renewing the keep alive token.
   MOZ_ASSERT(mWorkerPrivate);

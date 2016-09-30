@@ -9,9 +9,16 @@ using namespace mozilla::dom;
 
 BEGIN_WORKERS_NAMESPACE
 
+NS_IMPL_ISUPPORTS0(ServiceWorkerEventChild)
+
 ServiceWorkerEventChild::ServiceWorkerEventChild(const ServiceWorkerEventArgs& aArgs)
 {
     MOZ_COUNT_CTOR(ServiceWorkerEventChild);
+}
+
+ServiceWorkerEventChild::Init()
+{
+
 }
 
 ServiceWorkerEventChild::~ServiceWorkerEventChild()

@@ -20,7 +20,7 @@ class ServiceWorkerEventParent final : public PServiceWorkerEventParent
 {
 
 public:
-  ServiceWorkerEventParent();
+  ServiceWorkerEventParent(LifeCycleEventCallback* aCallback);
   ~ServiceWorkerEventParent();
 
 private:

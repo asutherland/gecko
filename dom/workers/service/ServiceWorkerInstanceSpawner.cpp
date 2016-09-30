@@ -6,6 +6,8 @@
 
 #include "ServiceWorkerInstanceSpawner.h"
 
+#include "ServiceWorkerInfo.h"
+#include "ServiceWorkerPrivate.h"
 #include "Workers.h" // For AssertIsOnMainThread
 
 using namespace mozilla;
@@ -23,11 +25,8 @@ static StaticRefPtr<ServiceWorkerInstanceSpawner> gInstance;
  */
 static gShutdownIssued = false;
 
-/* static */ already_AddRefed<ServiceWorkerInstanceParent>
-ServiceWorkerInstanceSpawner::SpawnInstance(nsIPrincipal* aPrincipal,
-                                            const nsACString& aScope,
-                                            const nsACString& aScriptSpec,
-                                            const nsAString& aCacheName)
+/* static */ ServiceWorkerInstanceParent*
+ServiceWorkerInstanceSpawner::SpawnInstance(ServiceWorkerPrivate* aOwner)
 {
   AssertIsOnMainThread();
 
@@ -41,7 +40,7 @@ ServiceWorkerInstanceSpawner::SpawnInstance(nsIPrincipal* aPrincipal,
     }
   }
 
-  return gInstance->Spawn(aPrincipal, aScope, aScriptSpec, aCacheName);
+  return gInstance->Spawn(aOwner);
 }
 
 /* static */
@@ -135,12 +134,32 @@ ServiceWorkerInstanceSpawner::Init()
   mDedicatedServiceWorkerProcess = ContentParent::ProvideFreshContentParent();
 }
 
-already_AddRefed<ServiceWorkerInstanceParent>
-ServiceWorkerInstanceSpawner::Spawn(nsIPrincipal* aPrincipal,
-                                    const nsACString& aScope,
-                                    const nsACString& aScriptSpec,
-                                    const nsAString& aCacheName)
+ServiceWorkerInstanceParent*
+ServiceWorkerInstanceSpawner::Spawn(ServiceWorkerPrivate* aOwner)
 {
+  MOZ_ASSERT(aOwner);
+  MOZ_ASSERT(aOwner->mInfo);
+
+  if (!mDedicatedServiceWorkerProcess) {
+    return nullptr;
+  }
+
+  ServiceWorkerInfo &info = *aOwner->mInfo;
+
+  ServiceWorkerInstanceConfig config;
+  config.instanceID() = info.ID();
+  config.scope() = info.Scope();
+  config.currentWorkerURL() = info.ScriptSpec();
+  config.cacheName() = info.CacheName();
+  mozilla::ipc::PrincipalToPrincipalInfo(info.GetPrincipal(),
+                                         &config.principal());
+
+  ServiceWorkerInstanceParent* actor = new ServiceWorkerInstanceParent();
+  // In event of failure it will deallocate the actor and return nullptr,
+  // otherwise it returns our actor which we need to downcast to impl again.
+  return static_cast<ServiceWorkerInstanceParent*>(
+    mDedicatedServiceWorkerProcess->SenPdServiceWorkerInstanceConstructor(
+      actor, config));
 }
 
 void

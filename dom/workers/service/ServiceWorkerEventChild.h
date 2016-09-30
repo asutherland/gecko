@@ -15,11 +15,13 @@ namespace workers {
 
 /**
  * Home to the runnables/logic for servicing the events; our owning
- * ServiceWorkerInstanceChild owns the WorkerPrivate.
+ * ServiceWorkerInstanceChild owns the WorkerPrivate.  We are similarly
+ * reference counted like it because of all the runnables involved in the use
+ * of workers.
  */
 class ServiceWorkerEventChild final : public PServiceWorkerEventChild
+                                    , public nsISupports
 {
-
 public:
   ServiceWorkerEventChild();
   ~ServiceWorkerEventChild();
@@ -28,6 +30,11 @@ private:
   // PServiceWorkerInstance methods
   virtual void
   ActorDestroy(ActorDestroyReason aReason) override;
+
+  RefPtr<ServiceWorkerInstanceChild> mOwner;
+
+public:
+  NS_DECL_ISUPPORTS
 };
 
 } // namespace workers

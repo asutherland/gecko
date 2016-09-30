@@ -12,15 +12,16 @@ namespace mozilla {
 namespace dom {
 
 /**
- * Used by the ServiceWorkerManager to spawn a placeholder for a specific
+ * Used by the ServiceWorkerManager to spawn a worker thread for a specific
  * version of a service worker in a (child) content process and dispatch events
  * to be serviced to it.
  *
- * By placeholder, we mean that the actual worker thread may not always exist.
- * (Given the nature of service workers, they are intended to be spawned and
- * terminated as needed.)  The decision on when to spawn and terminate the
- * worker thread is made by the child as long as it is alive.  If the parent
- * wants to explicitly terminate the worker, it should delete the actor.
+ * The lifetime of the worker is explicitly controlled by the parent, with
+ * deleting the actor explicitly terminating the worker.  The current
+ * implementation uses always-present parent-process ServiceWorkerPrivate
+ * instances which decide when to spawn and terminate a remote ServiceWorke
+ * instances.  Just like they previously used to spawn local WorkerPrivate
+ * instances with explicitly controlled life-cycles.
  */
 protocol PServiceWorkerInstance
 {
