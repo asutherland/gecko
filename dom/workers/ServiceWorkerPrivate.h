@@ -70,6 +70,8 @@ class ServiceWorkerPrivate final : public nsIObserver
   friend class KeepAliveToken;
   // So it can notify us when it's dying and so it can see our mInfo.
   friend class ServiceWorkerInstanceParent;
+  // So it can act like a KeepAliveToken;
+  friend class ServiceWorkerEventParent;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

@@ -14,7 +14,8 @@ namespace dom {
 namespace workers {
 
 /**
- *
+ * Holds event callback and keepalive tokens for ServiceWorkerPrivate.
+ * ServiceWorkerPrivate does no other per-event bookkeeping.
  */
 class ServiceWorkerEventParent final : public PServiceWorkerEventParent
 {
@@ -30,6 +31,8 @@ private:
 
   virtual void
   ActorDestroy(ActorDestroyReason aReason) override;
+
+  nsRefPtr<LifeCycleEventCallback> mCallback;
 };
 
 } // namespace workers

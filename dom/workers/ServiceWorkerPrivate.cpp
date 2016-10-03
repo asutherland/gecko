@@ -135,6 +135,16 @@ public:
 
 } // anonymous namespace
 
+ServiceWorkerPrivate::SendEventCommon(ServiceWorkerEventArgs& args,
+                                      LifeCycleEventCallback *aCallback)
+{
+  // Caller should have already called and result-checked SpawnWorkerIfNeeded.
+  MOZ_ASSERT(mServiceWorkerInstance);
+
+  PServiceWorkerEventParent* actor = new ServiceWorkerEventParent(aCallback);
+  mServiceWorkerInstance->SendPServiceWorkerEventConstructor(actor, args);
+}
+
 nsresult
 ServiceWorkerPrivate::CheckScriptEvaluation(LifeCycleEventCallback* aCallback)
 {
@@ -142,10 +152,8 @@ ServiceWorkerPrivate::CheckScriptEvaluation(LifeCycleEventCallback* aCallback)
   NS_ENSURE_SUCCESS(rv, rv);
 
   ServiceWorkerEventArgs args(ServiceWorkerEvaluateScriptEventArgs());
+  return SendEventCommon(args, aCallback);
 
-
-  PServiceWorkerEventParent* actor = new ServiceWorkerEventParent(aCallback);
-  mServiceWorkerInstance->SendPServiceWorkerEventConstructor(actor, args);
 
   RefPtr<KeepAliveToken> token = CreateEventKeepAliveToken();
   RefPtr<WorkerRunnable> r = new CheckScriptEvaluationWithCallback(mWorkerPrivate,
