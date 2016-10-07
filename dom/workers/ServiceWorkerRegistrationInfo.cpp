@@ -249,23 +249,13 @@ ServiceWorkerRegistrationInfo::Activate()
       swm, &ServiceWorkerManager::FireControllerChange, this);
   NS_DispatchToMainThread(controllerChangeRunnable);
 
-  nsCOMPtr<nsIRunnable> failRunnable =
-    NewRunnableMethod<bool>(this,
-                            &ServiceWorkerRegistrationInfo::FinishActivate,
-                            false /* success */);
-
   nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> handle(
     new nsMainThreadPtrHolder<ServiceWorkerRegistrationInfo>(this));
   RefPtr<LifeCycleEventCallback> callback = new ContinueActivateRunnable(handle);
 
   ServiceWorkerPrivate* workerPrivate = mActiveWorker->WorkerPrivate();
   MOZ_ASSERT(workerPrivate);
-  nsresult rv = workerPrivate->SendLifeCycleEvent(NS_LITERAL_STRING("activate"),
-                                                  callback, failRunnable);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(failRunnable));
-    return;
-  }
+  workerPrivate->SendLifeCycleEvent(NS_LITERAL_STRING("activate"), callback);
 }
 
 void
