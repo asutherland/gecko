@@ -28,7 +28,7 @@ class KeepAliveToken;
 class LifeCycleEventCallback : public Runnable
 {
 public:
-  // Called on the worker thread.
+  // Called on the main thread.
   virtual void
   SetResult(bool aResult) = 0;
 };
@@ -86,14 +86,17 @@ public:
                    UniquePtr<ServiceWorkerClientInfo>&& aClientInfo);
 
   // This is used to validate the worker script and continue the installation
-  // process.
-  nsresult
+  // process.  aCallback is always invoked exactly once in a future turn of the
+  // main thread's event loop, no matter what happens inside this call.
+  void
   CheckScriptEvaluation(LifeCycleEventCallback* aCallback);
 
-  nsresult
+  // Send install/activate events.  aCallback is always invoked exactly once in
+  // a future turn of the main thread's event loop, no matter what happens
+  // inside this call.
+  void
   SendLifeCycleEvent(const nsAString& aEventType,
-                     LifeCycleEventCallback* aCallback,
-                     nsIRunnable* aLoadFailure);
+                     LifeCycleEventCallback* aCallback);
 
   nsresult
   SendPushEvent(const nsAString& aMessageId,

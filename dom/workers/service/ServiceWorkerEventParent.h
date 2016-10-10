@@ -7,6 +7,7 @@
 #ifndef mozilla_dom_workers_service_ServiceWorkerEventParent_h
 #define mozilla_dom_workers_service_ServiceWorkerEventParent_h
 
+class nsIInterceptedChannel;
 
 namespace mozilla {
 namespace dom {
@@ -14,25 +15,49 @@ namespace dom {
 namespace workers {
 
 /**
- * Holds event callback and keepalive tokens for ServiceWorkerPrivate.
- * ServiceWorkerPrivate does no other per-event bookkeeping.
+ * Holds event callbacks and acts like a KeepAliveToken for
+ * ServiceWorkerPrivate.  ServiceWorkerPrivate does no other per-event
+ * bookkeeping.
+ *
+ * "Acts like" a KeepAliveToken for visibility reasons and because we don't need
+ * it; our life-cycle lines up exactly with that of a would-be token and we live
+ * exclusively on the main thread.  (KeepAliveToken pre-remoting was held by
+ * worker-thread-exposed objects using nsMainThreadPtrHandle with asserts
+ * ensuring the release was main-thread.)
  */
 class ServiceWorkerEventParent final : public PServiceWorkerEventParent
 {
 
 public:
-  ServiceWorkerEventParent(LifeCycleEventCallback* aCallback);
-  ~ServiceWorkerEventParent();
+  /**
+   * @param aCallback
+   *   Provided for script evaluation and lifecycle events.
+   */
+  explicit ServiceWorkerEventParent(ServiceWorkerPrivate* aOwner,
+                                    ServiceWorkerEventArgs::Type aType,
+                                    LifeCycleEventCallback* aCallback,
+                                    nsIInterceptedChannel* aIntercepted);
+  virtual ~ServiceWorkerEventParent();
 
 private:
   // PServiceWorkerEvent methods
   virtual bool
   RecvFetchEventRespondWith(const IPCInternalResponse& aResponse) override;
 
+  virtual bool
+  Recv__delete__(const ServiceWorkerEventResult& aResult) override;
+
   virtual void
   ActorDestroy(ActorDestroyReason aReason) override;
 
+  nsRefPtr<ServiceWorkerPrivate> mOwner;
+  // At most one of mCallback, mInterceptedChannel will be non-null depending on
+  // mEventType.
   nsRefPtr<LifeCycleEventCallback> mCallback;
+  nsCOMPtr<nsIInterceptedChannel> mInterceptedChannel;
+  // The type of the event we correspond to so that we can ensure the result
+  // union type appropriately matches.
+  ServiceWorkerEventArgs::Type mEventType;
 };
 
 } // namespace workers

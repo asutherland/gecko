@@ -158,7 +158,7 @@ ServiceWorkerInstanceSpawner::Spawn(ServiceWorkerPrivate* aOwner)
   // In event of failure it will deallocate the actor and return nullptr,
   // otherwise it returns our actor which we need to downcast to impl again.
   return static_cast<ServiceWorkerInstanceParent*>(
-    mDedicatedServiceWorkerProcess->SenPdServiceWorkerInstanceConstructor(
+    mDedicatedServiceWorkerProcess->SendPServiceWorkerInstanceConstructor(
       actor, config));
 }
 

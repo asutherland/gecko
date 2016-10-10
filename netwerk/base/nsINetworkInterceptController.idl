@@ -16,11 +16,16 @@ interface nsIURI;
 namespace mozilla {
 namespace dom {
 class ChannelInfo;
+class InternalRequest;
+class InternalResponse;
 }
 }
 %}
 
 [ptr] native ChannelInfo(mozilla::dom::ChannelInfo);
+
+[ptr] native alreadyAddRefed_InternalRequest(already_AddRefed<mozilla::dom::InternalRequest>);
+[ptr] native InternalResponsePtr(mozilla::dom::InternalResponse);
 
 /**
  * Interface to allow implementors of nsINetworkInterceptController to control the behaviour
@@ -114,6 +119,12 @@ interface nsIInterceptedChannel : nsISupports
      */
     [noscript]
     void setReleaseHandle(in nsISupports aHandle);
+
+    [noscript, notxpcom]
+    alreadyAddRefed_InternalRequest toInternalRequest();
+
+    [noscript, notxpcom]
+    void synthesizeFromInternalResponse(in InternalResponsePtr aResponse);
 };
 
 /**

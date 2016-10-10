@@ -357,6 +357,212 @@ InterceptedChannelChrome::GetSecureUpgradedChannelURI(nsIURI** aURI)
   return mChannel->GetURI(aURI);
 }
 
+/* [noscript,notxpcom] alreadyAddRefed_InternalRequest toInternalRequest (); */
+NS_IMETHODIMP_(already_AddRefed<mozilla::dom::InternalRequest> *)
+InterceptedChannelChrome::ToInternalRequest()
+{
+  AssertIsOnMainThread();
+  nsCOMPtr<nsIChannel> channel;
+  nsresult rv = GetChannel(getter_AddRefs(channel));
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  nsCOMPtr<nsIURI> uri;
+  rv = GetSecureUpgradedChannelURI(getter_AddRefs(uri));
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  // Normally we rely on the Request constructor to strip the fragment, but
+  // when creating the FetchEvent we bypass the constructor.  So strip the
+  // fragment manually here instead.  We can't do it later when we create
+  // the Request because that code executes off the main thread.
+  nsCOMPtr<nsIURI> uriNoFragment;
+  rv = uri->CloneIgnoringRef(getter_AddRefs(uriNoFragment));
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  nsCString spec;
+  rv = uriNoFragment->GetSpec(spec);
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  uint32_t loadFlags;
+  rv = channel->GetLoadFlags(&loadFlags);
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  nsCOMPtr<nsILoadInfo> loadInfo;
+  rv = channel->GetLoadInfo(getter_AddRefs(loadInfo));
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  nsContentPolicyType contentPolicyType = loadInfo->InternalContentPolicyType();
+
+  nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(channel);
+  MOZ_ASSERT(httpChannel, "How come we don't have an HTTP channel?");
+
+  nsCString referrer;
+  // Ignore the return value since the Referer header may not exist.
+  httpChannel->GetRequestHeader(NS_LITERAL_CSTRING("Referer"), referrer);
+  if (referrer.IsEmpty()) {
+    referrer = NS_LITERAL_CSTRING("about:client");
+  }
+
+  uint32_t referrerPolicyCode = 0;
+  rv = httpChannel->GetReferrerPolicy(&referrerPolicyCode);
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  ReferrerPolicy referrerPolicy;
+  switch (referrerPolicyCode) {
+  case nsIHttpChannel::REFERRER_POLICY_NO_REFERRER:
+    referrerPolicy = ReferrerPolicy::No_referrer;
+    break;
+  case nsIHttpChannel::REFERRER_POLICY_ORIGIN:
+    referrerPolicy = ReferrerPolicy::Origin;
+    break;
+  case nsIHttpChannel::REFERRER_POLICY_NO_REFERRER_WHEN_DOWNGRADE:
+    referrerPolicy = ReferrerPolicy::No_referrer_when_downgrade;
+    break;
+  case nsIHttpChannel::REFERRER_POLICY_ORIGIN_WHEN_XORIGIN:
+    referrerPolicy = ReferrerPolicy::Origin_when_cross_origin;
+    break;
+  case nsIHttpChannel::REFERRER_POLICY_UNSAFE_URL:
+    referrerPolicy = ReferrerPolicy::Unsafe_url;
+    break;
+  default:
+    MOZ_ASSERT_UNREACHABLE("Invalid Referrer Policy enum value?");
+    break;
+  }
+
+  nsCString method;
+  rv = httpChannel->GetRequestMethod(method);
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  nsCOMPtr<nsIHttpChannelInternal> internalChannel = do_QueryInterface(httpChannel);
+  NS_ENSURE_TRUE(internalChannel, nullptr);
+
+  RequestMode requestMode = InternalRequest::MapChannelToRequestMode(channel);
+
+  // This is safe due to static_asserts in ServiceWorkerManager.cpp.
+  uint32_t redirectModeCode;
+  internalChannel->GetRedirectMode(&redirectModeCode);
+  RequestRedirect requestRedirect = static_cast<RequestRedirect>(redirectModeCode);
+
+  // This is safe due to static_asserts in ServiceWorkerManager.cpp.
+  uint32_t cacheModeCode;
+  internalChannel->GetFetchCacheMode(&cacheModeCode);
+  RequestCache cacheMode = static_cast<RequestCache>(cacheModeCode);
+
+  RequestCredentials requestCredentials = InternalRequest::MapChannelToRequestCredentials(channel);
+
+  RefPtr<InternalHeaders> internalHeaders = new InternalHeaders();
+
+  RefPtr<InternalRequest> ref = new InternalRequest(spec,
+                                                    method,
+                                                    internalHeaders.forget(),
+                                                    cacheMode,
+                                                    requestMode,
+                                                    requestRedirect,
+                                                    requestCredentials,
+                                                    NS_ConvertUTF8toUTF16(referrer),
+                                                    referrerPolicy,
+                                                    contentPolicyType);
+
+  return ref.forget();
+}
+
+/* [noscript,notxpcom] void synthesizeFromInternalResponse (in InternalResponsePtr aResponse); */
+NS_IMETHODIMP_(void)
+InterceptedChannelChrome::SynthesizeFromInternalResponse(mozilla::dom::InternalResponse *aResponse)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIChannel> inner;
+  rv = GetChannel(getter_AddRefs(inner));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    Cancel(NS_ERROR_INTERCEPTION_FAILED);
+    return;
+  }
+
+  nsCOMPtr<nsILoadInfo> loadInfo = inner->GetLoadInfo();
+
+  // TODO: CSP check
+
+  RefPtr<InternalResponse> ir = aResponse;
+  if (NS_WARN_IF(!ir)) {
+    Cancel(NS_ERROR_INTERCEPTION_FAILED);
+    return;
+  }
+
+  MOZ_ASSERT(ir->GetChannelInfo().IsInitialized());
+  rv = SetChannelInfo(const_cast<ChannelInfo*>(&ir->GetChannelInfo()));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    Cancel(NS_ERROR_INTERCEPTION_FAILED);
+    return;
+  }
+
+  rv = SynthesizeStatus(ir->GetUnfilteredStatus(),
+                        ir->GetUnfilteredStatusText());
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    Cancel(NS_ERROR_INTERCEPTION_FAILED);
+    return;
+  }
+
+  AutoTArray<InternalHeaders::Entry, 5> entries;
+  ir->UnfilteredHeaders()->GetEntries(entries);
+  for (uint32_t i = 0; i < entries.Length(); ++i) {
+    SynthesizeHeader(entries[i].mName, entries[i].mValue);
+  }
+
+  loadInfo->MaybeIncreaseTainting(ir->GetTainting());
+
+  nsCString responseURL;
+  if (ir->Type() == ResponseType::Opaque) {
+    ir->GetUnfilteredURL(responseURL);
+    if (NS_WARN_IF(responseURL.IsEmpty())) {
+      Cancel(NS_ERROR_INTERCEPTION_FAILED);
+      return;
+    }
+  }
+
+  // TODO: normally we block calling finish until copying completes...
+  //       lets see if we really need to
+  nsCOMPtr<nsIInputStream> bodyIn;
+  ir->GetUnfilteredBody(getter_AddRefs(bodyIn));
+  if (bodyIn) {
+    nsCOMPtr<nsIOutputStream> bodyOut;
+    rv = GetResponseBody(getter_AddRefs(bodyOut));
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      Cancel(NS_ERROR_INTERCEPTION_FAILED);
+      return;
+    }
+
+    const uint32_t kCopySegmentSize = 32 * 1024;
+
+    if (!NS_OutputStreamIsBuffered(bodyOut)) {
+      nsCOMPtr<nsIOutputStream> buffered;
+      rv = NS_NewBufferedOutputStream(getter_AddRefs(buffered), bodyOut,
+           kCopySegmentSize);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return;
+      }
+      bodyOut = buffered;
+    }
+
+    nsCOMPtr<nsIEventTarget> stsThread =
+      do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID, &rv);
+    if (NS_WARN_IF(!stsThread)) {
+      return;
+    }
+
+    rv = NS_AsyncCopy(bodyIn, bodyOut, stsThread, NS_ASYNCCOPY_VIA_WRITESEGMENTS,
+                      kCopySegmentSize);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return;
+    }
+  }
+
+  rv = FinishSynthesizedResponse(responseURL);
+  if (NS_WARN_IF(!ir)) {
+    Cancel(NS_ERROR_INTERCEPTION_FAILED);
+    return;
+  }
+}
+
 InterceptedChannelContent::InterceptedChannelContent(HttpChannelChild* aChannel,
                                                      nsINetworkInterceptController* aController,
                                                      InterceptStreamListener* aListener,

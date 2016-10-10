@@ -44,7 +44,7 @@ struct ServiceWorkerEvaluateScriptEventArgs {
  * the codebase.
  */
 struct ServiceWorkerLifeCycleEventArgs {
-
+  nsString messageId;
 };
 
 /**
@@ -61,6 +61,10 @@ struct ServiceWorkerPostMessageEventArgs {
   ClonedMessageData messageData;
 };
 
+struct ServiceWorkerPushEventArgs {
+
+};
+
 union ServiceWorkerEventArgs {
   ServiceWorkerEvaluateScriptEventArgs;
   ServiceWorkerLifeCycleEventArgs;
@@ -69,18 +73,27 @@ union ServiceWorkerEventArgs {
 };
 
 struct ServiceWorkerEvaluateScriptEventResult {
-
+  bool result;
 };
 
 struct ServiceWorkerLifeCycleEventResult {
-
+  bool result;
 };
 
+/**
+ * Any fetch Response comes via FetchEventRespondWith method invocation on the
+ * PServiceWorkerInstance.  This result corresponds to when the waitUntil
+ * fully settles, which is strictly after the fetch response.
+ */
 struct ServiceWorkerFetchEventResult {
 };
 
+/**
+ * This corresponds to the waitUntil fully settling.  Any messages sent in
+ * response to the sender of this message would occur via the
+ * `Client.postMessage` API surface.
+ */
 struct ServiceWorkerPostMessageEventResult {
-
 };
 
 union ServiceWorkerEventResult {

@@ -99,8 +99,6 @@ private:
   DeallocPServiceWorkerEventParent(PServiceWorkerEventParent* aActor);
 
   virtual void
-  ActorDestroy(ActorDestroyReason aWhy);
-  virtual void
   ActorDestroy(ActorDestroyReason aReason) override;
 
   /**

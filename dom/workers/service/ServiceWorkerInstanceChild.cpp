@@ -103,7 +103,7 @@ ServiceWorkerInstanceChild::AllocPServiceWorkerEventChild(
     MOZ_CRASH("Invalid event sent to ServiceWorkerInstance actor.");
   }
 
-  return new ServiceWorkerEventChild(this, aArgs);
+  return new ServiceWorkerEventChild(this);
 }
 
 bool
@@ -118,6 +118,7 @@ bool
 ServiceWorkerInstanceChild::RecvPServiceWorkerEventChildConstructor(
   PServiceWorkerEventChild* aActor, const ServiceWorkerEventArgs &aArgs)
 {
+  aActor->Init(aArgs);
   return true;
 }
 

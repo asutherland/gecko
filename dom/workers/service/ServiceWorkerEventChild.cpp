@@ -11,12 +11,14 @@ BEGIN_WORKERS_NAMESPACE
 
 NS_IMPL_ISUPPORTS0(ServiceWorkerEventChild)
 
-ServiceWorkerEventChild::ServiceWorkerEventChild(const ServiceWorkerEventArgs& aArgs)
+ServiceWorkerEventChild::ServiceWorkerEventChild(
+  ServiceWorkerInstanceChild *aOwner)
+  : mOwner(aOwner)
 {
     MOZ_COUNT_CTOR(ServiceWorkerEventChild);
 }
 
-ServiceWorkerEventChild::Init()
+ServiceWorkerEventChild::Init(const ServiceWorkerEventArgs& aArgs)
 {
 
 }
@@ -104,6 +106,13 @@ private:
 };
 
 } // anonymous namespace
+
+void
+ServiceWorkerEventChild::StartEvaluateScript(
+  const ServiceWorkerEvaluateScriptEventArgs &aArgs)
+{
+
+}
 
 nsresult
 ServiceWorkerPrivate::CheckScriptEvaluation(LifeCycleEventCallback* aScriptEvaluationCallback)

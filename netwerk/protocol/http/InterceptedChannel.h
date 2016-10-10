@@ -91,6 +91,8 @@ public:
   NS_IMETHOD Cancel(nsresult aStatus) override;
   NS_IMETHOD SetChannelInfo(mozilla::dom::ChannelInfo* aChannelInfo) override;
   NS_IMETHOD GetInternalContentPolicyType(nsContentPolicyType *aInternalContentPolicyType) override;
+  NS_IMETHOD_(already_AddRefed<mozilla::dom::InternalRequest> *) ToInternalRequest(void) override;
+  NS_IMETHOD_(void) SynthesizeFromInternalResponse(mozilla::dom::InternalResponse *aResponse) override;
 
   virtual void NotifyController() override;
 };

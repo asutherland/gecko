@@ -133,6 +133,8 @@ public:
   }
 };
 
+/// XXX ExtendableFunctionalEventWorkerRunnable needs hookup.
+
 } // anonymous namespace
 
 ServiceWorkerPrivate::SendEventCommon(ServiceWorkerEventArgs& args,
@@ -143,47 +145,38 @@ ServiceWorkerPrivate::SendEventCommon(ServiceWorkerEventArgs& args,
 
   PServiceWorkerEventParent* actor = new ServiceWorkerEventParent(aCallback);
   mServiceWorkerInstance->SendPServiceWorkerEventConstructor(actor, args);
+
+  return NS_OK;
 }
 
 nsresult
 ServiceWorkerPrivate::CheckScriptEvaluation(LifeCycleEventCallback* aCallback)
 {
-  nsresult rv = SpawnWorkerIfNeeded(LifeCycleEvent, nullptr);
-  NS_ENSURE_SUCCESS(rv, rv);
+  MOZ_ASSERT(aCallback);
+
+  nsresult rv = SpawnWorkerIfNeeded(LifeCycleEvent);
+  if (NS_FAILED(rv)) {
+    DispatchFalseLifeCycleEventCallback(aCallback);
+    return rv;
+  }
 
   ServiceWorkerEventArgs args(ServiceWorkerEvaluateScriptEventArgs());
   return SendEventCommon(args, aCallback);
-
-
-  RefPtr<KeepAliveToken> token = CreateEventKeepAliveToken();
-  RefPtr<WorkerRunnable> r = new CheckScriptEvaluationWithCallback(mWorkerPrivate,
-                                                                   token,
-                                                                   aCallback);
-  if (NS_WARN_IF(!r->Dispatch())) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
 }
 
 nsresult
 ServiceWorkerPrivate::SendLifeCycleEvent(const nsAString& aEventType,
-                                         LifeCycleEventCallback* aCallback,
-                                         nsIRunnable* aLoadFailure)
+                                         LifeCycleEventCallback* aCallback)
 {
-  nsresult rv = SpawnWorkerIfNeeded(LifeCycleEvent, aLoadFailure);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  RefPtr<KeepAliveToken> token = CreateEventKeepAliveToken();
-  RefPtr<WorkerRunnable> r = new LifecycleEventWorkerRunnable(mWorkerPrivate,
-                                                              token,
-                                                              aEventType,
-                                                              aCallback);
-  if (NS_WARN_IF(!r->Dispatch())) {
-    return NS_ERROR_FAILURE;
+  nsresult rv = SpawnWorkerIfNeeded(LifeCycleEvent);
+  if (NS_FAILED(rv)) {
+    DispatchFalseLifeCycleEventCallback(aCallback);
+    return rv;
   }
 
-  return NS_OK;
+  ServiceWorkerLifeCycleEventArgs lifeCycleArgs(aEventType);
+  ServiceWorkerEventArgs args(lifeCycleArgs);
+  return SendEventCommon(args, aCallback);
 }
 
 namespace {
@@ -251,7 +244,16 @@ ServiceWorkerPrivate::SendPushEvent(const nsAString& aMessageId,
                                     const Maybe<nsTArray<uint8_t>>& aData,
                                     ServiceWorkerRegistrationInfo* aRegistration)
 {
-  nsresult rv = SpawnWorkerIfNeeded(PushEvent, nullptr);
+  nsresult rv = SpawnWorkerIfNeeded(PushEvent);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  ServiceWorkerLifeCycleEventArgs lifeCycleArgs(aEventType);
+  ServiceWorkerEventArgs args(lifeCycleArgs);
+  return SendEventCommon(args, aCallback);
+
+  nsresult rv = SpawnWorkerIfNeeded(, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
   RefPtr<KeepAliveToken> token = CreateEventKeepAliveToken();

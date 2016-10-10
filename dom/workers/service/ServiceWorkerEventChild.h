@@ -23,14 +23,36 @@ class ServiceWorkerEventChild final : public PServiceWorkerEventChild
                                     , public nsISupports
 {
 public:
-  ServiceWorkerEventChild();
+  ServiceWorkerEventChild(ServiceWorkerInstanceChild *aOwner);
   ~ServiceWorkerEventChild();
+
+  // Process the event request by dispatching to the event-type-specific Start*
+  // methods.  This begs the question of why we are a generic EventChild rather
+  // than having specific EventTYPEChild classes and our answer is to reduce
+  // proliferation of actor types because they're a hassle.
+  void
+  Init(const ServiceWorkerEventArgs &aArgs);
+
 
 private:
   // PServiceWorkerInstance methods
   virtual void
   ActorDestroy(ActorDestroyReason aReason) override;
 
+  void
+  StartEvaluateScript(const ServiceWorkerEvaluateScriptEventArgs &aArgs);
+
+  void
+  StartLifeCycle(const ServiceWorkerLifeCycleEventArgs &aArgs);
+
+  void
+  StartFetchEvent(const ServiceWorkerFetchEventArgs &aArgs);
+
+  void
+  StartPostMessage(const ServiceWorkerPostMessageEventArgs &aArgs);
+
+
+  // Necessary for access to the WorkerPrivate.
   RefPtr<ServiceWorkerInstanceChild> mOwner;
 
 public:
