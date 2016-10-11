@@ -30,28 +30,15 @@ ServiceWorkerEventChild::~ServiceWorkerEventChild()
 
 namespace {
 
-class CheckScriptEvaluationWithCallback final : public WorkerRunnable
+class CheckScriptEvaluationRunnable final : public WorkerRunnable
 {
-  nsMainThreadPtrHandle<ServiceWorkerPrivate> mServiceWorkerPrivate;
-  nsMainThreadPtrHandle<KeepAliveToken> mKeepAliveToken;
-
-  // The script evaluation result must be reported even if the runnable
-  // is cancelled.
-  RefPtr<LifeCycleEventCallback> mScriptEvaluationCallback;
-
-#ifdef DEBUG
-  bool mDone;
-#endif
+  RefPtr<ServiceWorkerEventChild> mEvent;
 
 public:
-  CheckScriptEvaluationWithCallback(WorkerPrivate* aWorkerPrivate,
-                                    ServiceWorkerPrivate* aServiceWorkerPrivate,
-                                    KeepAliveToken* aKeepAliveToken,
-                                    LifeCycleEventCallback* aScriptEvaluationCallback)
+  CheckScriptEvaluationRunnable(WorkerPrivate* aWorkerPrivate,
+                                ServiceWorkerEventChild* aEvent)
     : WorkerRunnable(aWorkerPrivate)
-    , mServiceWorkerPrivate(new nsMainThreadPtrHolder<ServiceWorkerPrivate>(aServiceWorkerPrivate))
-    , mKeepAliveToken(new nsMainThreadPtrHolder<KeepAliveToken>(aKeepAliveToken))
-    , mScriptEvaluationCallback(aScriptEvaluationCallback)
+    , mEvent(aEvent)
 #ifdef DEBUG
     , mDone(false)
 #endif
@@ -100,8 +87,9 @@ private:
 #ifdef DEBUG
     mDone = true;
 #endif
-    mScriptEvaluationCallback->SetResult(aScriptEvaluationResult);
-    MOZ_ALWAYS_SUCCEEDS(mWorkerPrivate->DispatchToMainThread(mScriptEvaluationCallback));
+    MOZ_ALWAYS_SUCCEEDS(mWorkerPrivate->DispatchToMainThread(
+      NewRunnableMethod(mEvent, &ServiceWorkerEventChild::DoneEvaluateScript,
+                        aResult)));
   }
 };
 
@@ -111,24 +99,20 @@ void
 ServiceWorkerEventChild::StartEvaluateScript(
   const ServiceWorkerEvaluateScriptEventArgs &aArgs)
 {
+  RefPtr<WorkerRunnable> r = new CheckScriptEvaluationWithCallback(
+    mOwner->WorkerPrivate(), mOwner);
 
+  if (NS_WARN_IF(!r->Dispatch())) {
+    DoneEvaluateScript(false);
+  }
 }
 
-nsresult
-ServiceWorkerPrivate::CheckScriptEvaluation(LifeCycleEventCallback* aScriptEvaluationCallback)
+void
+ServiceWorkerEventChild::DoneEvaluateScript(bool aResult)
 {
-  nsresult rv = SpawnWorkerIfNeeded(LifeCycleEvent, nullptr);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  RefPtr<KeepAliveToken> token = CreateEventKeepAliveToken();
-  RefPtr<WorkerRunnable> r = new CheckScriptEvaluationWithCallback(mWorkerPrivate,
-                                                                   this, token,
-                                                                   aScriptEvaluationCallback);
-  if (NS_WARN_IF(!r->Dispatch())) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
+  ServiceWorkerEventResult result(
+    ServiceWorkerEvaluateScriptEventResult(aResult));
+  Send__delete__(this, result);
 }
 
 namespace {
@@ -521,17 +505,16 @@ public:
  */
 class LifecycleEventWorkerRunnable : public ExtendableEventWorkerRunnable
 {
+  RefPtr<ServiceWorkerEventChild> mEvent;
   nsString mEventName;
-  RefPtr<LifeCycleEventCallback> mCallback;
 
 public:
   LifecycleEventWorkerRunnable(WorkerPrivate* aWorkerPrivate,
-                               KeepAliveToken* aToken,
-                               const nsAString& aEventName,
-                               LifeCycleEventCallback* aCallback)
+                               ServiceWorkerEventChild* aEvent,
+                               const nsAString& aEventName)
       : ExtendableEventWorkerRunnable(aWorkerPrivate, aToken)
+      , mEvent(aEvent)
       , mEventName(aEventName)
-      , mCallback(aCallback)
   {
     AssertIsOnMainThread();
   }
@@ -546,8 +529,9 @@ public:
   nsresult
   Cancel() override
   {
-    mCallback->SetResult(false);
-    MOZ_ALWAYS_SUCCEEDS(mWorkerPrivate->DispatchToMainThread(mCallback));
+    MOZ_ALWAYS_SUCCEEDS(mWorkerPrivate->DispatchToMainThread(
+      NewRunnableMethod(mEvent, &ServiceWorkerEventChild::DoneLifeCycle,
+                        false)));
 
     return WorkerRunnable::Cancel();
   }
@@ -664,6 +648,17 @@ public:
     // reported properly.
   }
 };
+
+void
+ServiceWorkerEventChild::StartLifeCycle(const ServiceWorkerLifeCycleEventArgs &aArgs)
+{
+  RefPtr<WorkerRunnable> r = new LifecycleEventWorkerRunnable(
+    mOwner->WorkerPrivate(), mOwner);
+
+  if (NS_WARN_IF(!r->Dispatch())) {
+    DoneLifeCycle(false);
+  }
+}
 
 bool
 LifecycleEventWorkerRunnable::DispatchLifecycleEvent(JSContext* aCx,

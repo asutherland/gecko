@@ -51,12 +51,14 @@ private:
   void
   StartPostMessage(const ServiceWorkerPostMessageEventArgs &aArgs);
 
-
   // Necessary for access to the WorkerPrivate.
   RefPtr<ServiceWorkerInstanceChild> mOwner;
 
 public:
   NS_DECL_ISUPPORTS
+
+  void
+  DoneEvaluateScript(bool aResult);
 };
 
 } // namespace workers

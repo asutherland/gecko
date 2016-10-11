@@ -73,6 +73,13 @@ ServiceWorkerEventParent::Recv__delete__(const ServiceWorkerEventResult& aResult
 void
 ServiceWorkerEventParent::ActorDestroy(ActorDestroyReason aReason)
 {
+  // If we still have a callback, then call it notifying failure.
+  if (mCallback) {
+    mCallback->SetResult(false);
+    Unused << mCallback->Run();
+    mCallback = nullptr;
+  }
+
   mOwner->ReleaseToken();
   mOwner = nullptr;
 }
