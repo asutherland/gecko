@@ -139,6 +139,23 @@ public:
                              ContentParent* aOpener = nullptr);
 
   /**
+   * Low-level helper to provide a fresh ContentParent by taking the
+   * preallocated process if available, falling back to making a new
+   * ContentParent if not.  Intended for use by higher level process-reuse aware
+   * methods like GetNewOrUsedBrowserProcess or for mechanisms that currently
+   * need their own dedicated content process, such as service workers in
+   * RemoteServiceWorkerSpawner.
+   *
+   * The returned ContentParent will only be present in the sContentParents
+   * linked list, making it visible to the AllProcesses iterator but no others.
+   */
+  static already_AddRefed<ContentParent>
+  ProvideFreshContentParent(bool aForBrowserElement = false,
+                            hal::ProcessPriority aPriority =
+                            hal::ProcessPriority::PROCESS_PRIORITY_FOREGROUND,
+                            ContentParent* aOpener = nullptr);
+
+  /**
    * Create a subprocess suitable for use as a preallocated app process.
    */
   static already_AddRefed<ContentParent> PreallocateAppProcess();

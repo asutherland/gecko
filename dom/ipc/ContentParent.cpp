@@ -775,6 +775,17 @@ ContentParent::GetNewOrUsedBrowserProcess(bool aForBrowserElement,
     } while (currIdx != startIdx);
   }
 
+  RefPtr<ContentParent> p = ProvideFreshContentParent(aForBrowserElement,
+                                                      aPriority, aOpener);
+  sNonAppContentParents->AppendElement(p);
+  return p.forget();
+}
+
+/*static*/ already_AddRefed<ContentParent>
+ProvideFreshContentParent(bool aForBrowserElement,
+                          ProcessPriority aPriority,
+                          ContentParent* aOpener)
+{
   // Try to take and transform the preallocated process into browser.
   RefPtr<ContentParent> p = PreallocatedProcessManager::Take();
   if (p) {
@@ -794,7 +805,6 @@ ContentParent::GetNewOrUsedBrowserProcess(bool aForBrowserElement,
   }
   p->ForwardKnownInfo();
 
-  sNonAppContentParents->AppendElement(p);
   return p.forget();
 }
 
