@@ -15,6 +15,7 @@
 #include "nsIPushErrorReporter.h"
 #include "nsISupportsImpl.h"
 #include "nsIUploadChannel2.h"
+#include "nsFrameMessageManager.h" // for MessageManagerCallback; TODO remove.
 #include "nsNetUtil.h"
 #include "nsProxyRelease.h"
 #include "nsQueryObject.h"
@@ -112,29 +113,56 @@ ServiceWorkerPrivate::SendMessageEvent(JSContext* aCx,
                                        const Optional<Sequence<JS::Value>>& aTransferable,
                                        UniquePtr<ServiceWorkerClientInfo>&& aClientInfo)
 {
+  // TESTING STOPGAP: As otherwise noted on our prototype declaration, the
+  // correct API is for the ServiceWorker binding to handle the serialization.
+  AssertIsOnMainThread();
+  MOZ_ASSERT(XRE_IsParentProcess());
+
   ErrorResult rv(SpawnWorkerIfNeeded(MessageEvent));
   if (NS_WARN_IF(rv.Failed())) {
     return rv.StealNSResult();
   }
 
-  ServiceWorkerEventArgs args(ServiceWorkerPostMessageEventArgs());
-  SerializedStructuredCloneBuffer& buffer =
-    args.ServiceWorkerPostMessageEventArgs().messageData().data();
+  // transferable boilerplate from WorkerPrivateParent::PostMessageInternal
+  JS::Rooted<JS::Value> transferable(aCx, JS::UndefinedValue());
+  if (aTransferable.WasPassed()) {
+    const Sequence<JS::Value>& realTransferable = aTransferable.Value();
 
-  ipc::StructuredCloneData
+    // The input sequence only comes from the generated bindings code, which
+    // ensures it is rooted.
+    JS::HandleValueArray elements =
+      JS::HandleValueArray::fromMarkedLocation(realTransferable.Length(),
+                                               realTransferable.Elements());
 
-  auto iter = mData->BufferData().Iter();
-  buffer.data = mData->BufferData().Borrow<js::SystemAllocPolicy>(iter, mData->BufferData().Size(), &success);
-  if (NS_WARN_IF(!success)) {
-    return NS_OK;
+    JSObject* array =
+      JS_NewArrayObject(aCx, elements);
+    if (!array) {
+      rv.Throw(NS_ERROR_OUT_OF_MEMORY);
+      return;
+    }
+    transferable.setObject(*array);
   }
 
-  //RefPtr<PromiseNativeHandler> handler = new MessageWaitUntilHandler(token);
+  // perform the structured clone
+  ipc::StructuredCloneData holder;
+  holder->Write(aCx, aMessage, transferable, rv);
+  if (NS_WARN_IF(rv.Failed())) {
+    return rv.StealNSResult();
+  }
 
-  mWorkerPrivate->PostMessageToServiceWorker(aCx, aMessage, aTransferable,
-                                             Move(aClientInfo), handler,
-                                             rv);
-  return rv.StealNSResult();
+  // serialize to IPC representation including transferables.
+  ServiceWorkerEventArgs args(ServiceWorkerPostMessageEventArgs());
+  ClonedMessageData& messageData = args.ServiceWorkerPostMessageEventArgs().messageData();
+  HackReusableClonedMessageBuilder hack;
+  if (!hack.BuildMessageDataForParent(mServiceWorkerInstance->ContentParent(),
+                                      holder,
+                                      messageData)) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  // TODO clients: The ClientInfo needs to be serialized.
+
+  return SendEventCommon(args, nullptr);
 }
 
 namespace {
@@ -168,6 +196,7 @@ public:
 
 } // anonymous namespace
 
+nsresult
 ServiceWorkerPrivate::SendEventCommon(ServiceWorkerEventArgs& args,
                                       LifeCycleEventCallback *aCallback)
 {

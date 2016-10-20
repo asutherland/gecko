@@ -18,9 +18,32 @@ ServiceWorkerEventChild::ServiceWorkerEventChild(
     MOZ_COUNT_CTOR(ServiceWorkerEventChild);
 }
 
+void
 ServiceWorkerEventChild::Init(const ServiceWorkerEventArgs& aArgs)
 {
-
+  switch (aArgs.type()) {
+    case ServiceWorkerEventArgs::TServiceWorkerEvaluateScriptEventArgs:
+      StartEvaluateScript(aArgs.ServiceWorkerEvaluateScriptEventArgs());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerLifeCycleEventArgs:
+      StartLifeCycle(aArgs.ServiceWorkerLifeCycleEventArgs());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerFetchEventArgs:
+      StartFetchEvent(aArgs.ServiceWorkerFetchEventArgs());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerPostMessageEventArgs:
+      StartPostMessage(aArgs.ServiceWorkerPostMessageEventArgs());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerPushEventArgs:
+      StartPush(aArgs.ServiceWorkerPushEventArgs());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerPushSubscriptionChangeEventArgs:
+      StartPushSubscriptionChange(aArgs.ServiceWorkerPushSubscriptionChangeEventArgs());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerNotificationEventArgs:
+      StartNotification(aArgs.ServiceWorkerNotificationEventArgs());
+      break;
+  }
 }
 
 ServiceWorkerEventChild::~ServiceWorkerEventChild()
@@ -701,6 +724,8 @@ LifecycleEventWorkerRunnable::DispatchLifecycleEvent(JSContext* aCx,
   return true;
 }
 
+} // anonymous namespace
+
 void
 ServiceWorkerEventChild::StartLifeCycle(const ServiceWorkerLifeCycleEventArgs &aArgs)
 {
@@ -712,10 +737,82 @@ ServiceWorkerEventChild::StartLifeCycle(const ServiceWorkerLifeCycleEventArgs &a
   }
 }
 
+void
+ServiceWorkerEventChild::DoneLifeCycle(bool aResult)
+{
+  ServiceWorkerEventResult result(
+    ServiceWorkerLifeCycleEventResult(aResult));
+  Send__delete__(this, result);
+}
 
+namespace {
+
+/*
+
+ */
+class PostMessageEventWorkerRunnable : public ExtendableEventWorkerRunnable
+{
+  RefPtr<ServiceWorkerEventChild> mEvent;
+  ipc::StructuredCloneData mCloneData;
+
+public:
+  PostMessageEventWorkerRunnable(WorkerPrivate* aWorkerPrivate,
+                                 ServiceWorkerEventChild* aEvent,
+                                 ClonedMessageData &aMessageData)
+      : ExtendableEventWorkerRunnable(aWorkerPrivate)
+      , mEvent(aEvent)
+  {
+    AssertIsOnMainThread();
+
+    // TODO: Properly evaluate the thread safety of the blobs produced from
+    // this.  It seems rather likely that this may fall down when actors need
+    // to be involved.
+    ipc::UnpackClonedMessageDataForChild(aMessageData, mCloneData);
+  }
+
+  bool
+  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) override
+  {
+    MOZ_ASSERT(aWorkerPrivate);
+    return DispatchLifecycleEvent(aCx, aWorkerPrivate);
+  }
+
+  nsresult
+  Cancel() override
+  {
+    Done(false);
+    return WorkerRunnable::Cancel();
+  }
+
+  void
+  Done(bool aSuccess) override
+  {
+    MOZ_ALWAYS_SUCCEEDS(mWorkerPrivate->DispatchToMainThread(
+      NewRunnableMethod(mEvent, &ServiceWorkerEventChild::DonePostMessage)));
+  }
+
+private:
+  bool
+  DispatchLifecycleEvent(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
+
+};
+
+} // anonymous namespace
 
 void
 ServiceWorkerEventChild::StartPostMessage(const ServiceWorkerPostMessageEventArgs& aArgs)
+{
+  RefPtr<WorkerRunnable> r = new PostMessageEventWorkerRunnable(
+    mOwner->WorkerPrivate(), mOwner, aArgs.messageData());
+
+  if (NS_WARN_IF(!r->Dispatch())) {
+    DonePostMessage();
+  }
+  mOwner->WorkerPrivate()->PostMessageToServiceWorker
+}
+
+void
+ServiceWorkerEventChild::DonePostMessage()
 {
 
 }

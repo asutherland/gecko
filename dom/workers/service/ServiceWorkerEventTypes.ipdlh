@@ -59,6 +59,7 @@ struct ServiceWorkerFetchEventArgs {
  */
 struct ServiceWorkerPostMessageEventArgs {
   ClonedMessageData messageData;
+  // TODO: ServiceWorkerClientInfo/equivalent needed.
 };
 
 // It's semantically significant whether there is push data or not.  This can

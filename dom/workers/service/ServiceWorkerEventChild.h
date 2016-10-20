@@ -48,6 +48,7 @@ private:
   void
   StartFetchEvent(const ServiceWorkerFetchEventArgs &aArgs);
 
+  //
   void
   StartPostMessage(const ServiceWorkerPostMessageEventArgs &aArgs);
 
@@ -59,6 +60,15 @@ public:
 
   void
   DoneEvaluateScript(bool aResult);
+
+  void
+  DoneLifeCycle(bool aResult);
+
+  void
+  DoneFetchEvent();
+
+  void
+  DoneFetchEvent();
 };
 
 } // namespace workers

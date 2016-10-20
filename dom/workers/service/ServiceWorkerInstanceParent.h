@@ -33,6 +33,12 @@ class ServiceWorkerInstanceParent final : public PServiceWorkerInstanceParent
 public:
   ServiceWorkerInstanceParent(ServiceWorkerPrivate* aOwner);
 
+  nsIContent*
+  ContentParent()
+  {
+    return static_cast<nsIContentParent*>(static_cast<ContentParent*>(Manager()));
+  }
+
   nsresult
   DispatchMessageEvent(JSContext* aCx, JS::Handle<JS::Value> aMessage,
                        const Optional<Sequence<JS::Value>>& aTransferable,
