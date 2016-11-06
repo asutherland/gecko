@@ -48,7 +48,19 @@ private:
   void
   StartFetchEvent(const ServiceWorkerFetchEventArgs &aArgs);
 
+  // Implements 2-step handling of the received Structured Clone:
+  // 1) On the main thread, unpack the serialized IPC structured clone, writing
+  //    it/transferring ownership into a holder.  Dispatch to worker thread.
+  // 2) On the worker thread, perform the actual structured clone reading
+  //    including creating the actors for blobs and finalizing the transfer /
+  //    entangling of message ports.
   //
+  // This is currently a somewhat unique situation because in other structured
+  // cloning and postMessage cases the communication is either bouncing across
+  // threads or across processes where the IPC call is already delivering to
+  // the correct target thread.  That is, for MessageChannel/MessagePort, the
+  // actor receiving the message is already on the worker thread (via
+  // PBackground), the message does not need to bounce off the main thread.
   void
   StartPostMessage(const ServiceWorkerPostMessageEventArgs &aArgs);
 

@@ -756,6 +756,10 @@ class PostMessageEventWorkerRunnable : public ExtendableEventWorkerRunnable
   ipc::StructuredCloneData mCloneData;
 
 public:
+  // Extract/transfer ownership of the serialize clone data from aMessageData
+  // during construction (because the IPC layer will destroy it once we return
+  // control flow), but do not create any actors (ex: PBlob) until we get to the
+  // background thread.
   PostMessageEventWorkerRunnable(WorkerPrivate* aWorkerPrivate,
                                  ServiceWorkerEventChild* aEvent,
                                  ClonedMessageData &aMessageData)
@@ -764,16 +768,24 @@ public:
   {
     AssertIsOnMainThread();
 
-    // TODO: Properly evaluate the thread safety of the blobs produced from
-    // this.  It seems rather likely that this may fall down when actors need
-    // to be involved.
+    // Transfer the serialized buffer's ownership.
+    aData.UseExternalData(aMessageData.data().data);
+
+    // XXX Okay, so the RemoteBlobImpl is totally fine with being accessed
+    // from different threads.  It's very smart.  Hooray.  So we are able to
+    // do the unpacking on this thread and do the Read() on the worker.
     ipc::UnpackClonedMessageDataForChild(aMessageData, mCloneData);
+
   }
 
+  // Now we
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) override
   {
     MOZ_ASSERT(aWorkerPrivate);
+
+
+
     return DispatchLifecycleEvent(aCx, aWorkerPrivate);
   }
 
