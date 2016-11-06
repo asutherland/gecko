@@ -99,7 +99,10 @@ ServiceWorkerInstanceChild::AllocPServiceWorkerEventChild(
   if (aArgs.type() != ServiceWorkerEventArgs::TServiceWorkerEvaluateScriptEventArgs &&
       aArgs.type() != ServiceWorkerEventArgs::TServiceWorkerLifeCycleEventArgs &&
       aArgs.type() != ServiceWorkerEventArgs::TServiceWorkerFetchEventArgs &&
-      aArgs.type() != ServiceWorkerEventArgs::TServiceWorkerPostMessageEventArgs) {
+      aArgs.type() != ServiceWorkerEventArgs::TServiceWorkerPostMessageEventArgs &&
+      aArgs.type() != ServiceWorkerEventArgs::TServiceWorkerPushEventArgs &&
+      aArgs.type() != ServiceWorkerEventArgs::TServiceWorkerPushSubscriptionChangeEventArgs &&
+      aArgs.type() != ServiceWorkerEventArgs::TServiceWorkerNotificationEventArgs) {
     MOZ_CRASH("Invalid event sent to ServiceWorkerInstance actor.");
   }
 
