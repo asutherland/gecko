@@ -39,7 +39,6 @@ include protocol POfflineCacheUpdate;
 include protocol PRenderFrame;
 include protocol PScreenManager;
 include protocol PServiceWorkerInstance;
-include protocol PSharedBufferManager;
 include protocol PSpeechSynthesis;
 include protocol PStorage;
 include protocol PTestShell;
