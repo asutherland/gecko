@@ -61,18 +61,27 @@ private:
   virtual ~ServiceWorkerInstanceChild();
 
   // Template-magicked to be the worker LoadFailedAsyncRunnable handler to
-  // __delete__ us if we failed to spin up the worker correctly.
+  // __delete__ us if we failed to spin up the worker correctly.  Contributors
+  // to this occurring are:
+  // - Unlikely low-level allocation/spawn failures.
+  // - More likely network transport failures when initially evaluating the
+  //   script and we have to touch the network.
+  // - Less likely failures reading script components out of Cache once the
+  //   SW scripts have been offlined by the EvaluateScript event.
   void
   WorkerLoadFailedDeleteSelf();
-
 
   // Has ActorDestroy() been invoked?  Gates IPC calls given the async nature of
   // the worker thread and our interaction with it.
   bool mActorDestroyed;
 
   // The WorkerPrivate object can only be closed by this class or by the
-  // RuntimeService class if gecko is shutting down. Closing the worker
-  // multiple times is OK, since the second attempt will be a no-op.
+  // RuntimeService class if gecko is shutting down.  (self.close() does not
+  // exist for ServiceWorkers.)  Closing the worker multiple times is OK, since
+  // the second attempt will be a no-op.
+  //
+  // (This is why we don't directly register a WorkerHolder to listen for the
+  // WorkerPrivate magically and abruptly dying.)
   RefPtr<WorkerPrivate> mWorkerPrivate;
 
 public:

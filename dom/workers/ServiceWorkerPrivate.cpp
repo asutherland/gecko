@@ -106,6 +106,37 @@ ServiceWorkerPrivate::~ServiceWorkerPrivate()
   mIdleWorkerTimer->Cancel();
 }
 
+nsresult
+ServiceWorkerPrivate::SendMessageEvent(JSContext* aCx,
+                                       JS::Handle<JS::Value> aMessage,
+                                       const Optional<Sequence<JS::Value>>& aTransferable,
+                                       UniquePtr<ServiceWorkerClientInfo>&& aClientInfo)
+{
+  ErrorResult rv(SpawnWorkerIfNeeded(MessageEvent));
+  if (NS_WARN_IF(rv.Failed())) {
+    return rv.StealNSResult();
+  }
+
+  ServiceWorkerEventArgs args(ServiceWorkerPostMessageEventArgs());
+  SerializedStructuredCloneBuffer& buffer =
+    args.ServiceWorkerPostMessageEventArgs().messageData().data();
+
+  ipc::StructuredCloneData
+
+  auto iter = mData->BufferData().Iter();
+  buffer.data = mData->BufferData().Borrow<js::SystemAllocPolicy>(iter, mData->BufferData().Size(), &success);
+  if (NS_WARN_IF(!success)) {
+    return NS_OK;
+  }
+
+  //RefPtr<PromiseNativeHandler> handler = new MessageWaitUntilHandler(token);
+
+  mWorkerPrivate->PostMessageToServiceWorker(aCx, aMessage, aTransferable,
+                                             Move(aClientInfo), handler,
+                                             rv);
+  return rv.StealNSResult();
+}
+
 namespace {
 
 class RegistrationUpdateRunnable : public Runnable

@@ -294,7 +294,6 @@ private:
     RefPtr<nsIRunnable> r = NewRunnableMethod(this, &KeepAliveHandler::MaybeDone);
     cx->DispatchToMicroTask(r.forget());
   }
-};
 
 NS_IMPL_ISUPPORTS0(KeepAliveHandler)
 
@@ -497,6 +496,8 @@ public:
   }
 };
 
+NS_IMPL_ISUPPORTS0(ExtendableEventWorkerRunnable::InternalHandler)
+
 /*
  * Fires 'install' event on the ServiceWorkerGlobalScope. Modifies busy count
  * since it fires the event. This is ok since there can't be nested
@@ -512,7 +513,7 @@ public:
   LifecycleEventWorkerRunnable(WorkerPrivate* aWorkerPrivate,
                                ServiceWorkerEventChild* aEvent,
                                const nsAString& aEventName)
-      : ExtendableEventWorkerRunnable(aWorkerPrivate, aToken)
+      : ExtendableEventWorkerRunnable(aWorkerPrivate)
       , mEvent(aEvent)
       , mEventName(aEventName)
   {
@@ -529,10 +530,7 @@ public:
   nsresult
   Cancel() override
   {
-    MOZ_ALWAYS_SUCCEEDS(mWorkerPrivate->DispatchToMainThread(
-      NewRunnableMethod(mEvent, &ServiceWorkerEventChild::DoneLifeCycle,
-                        false)));
-
+    Done(false);
     return WorkerRunnable::Cancel();
   }
 
@@ -703,19 +701,38 @@ LifecycleEventWorkerRunnable::DispatchLifecycleEvent(JSContext* aCx,
   return true;
 }
 
-class SendPushEventRunnable final : public ExtendableFunctionalEventWorkerRunnable
+void
+ServiceWorkerEventChild::StartLifeCycle(const ServiceWorkerLifeCycleEventArgs &aArgs)
 {
+  RefPtr<WorkerRunnable> r = new LifecycleEventWorkerRunnable(
+    mOwner->WorkerPrivate(), mOwner, aArgs.eventName());
+
+  if (NS_WARN_IF(!r->Dispatch())) {
+    DoneLifeCycle(false);
+  }
+}
+
+
+
+void
+ServiceWorkerEventChild::StartPostMessage(const ServiceWorkerPostMessageEventArgs& aArgs)
+{
+
+}
+
+class SendPushEventRunnable final : public ExtendableEventWorkerRunnable
+{
+  RefPtr<ServiceWorkerEventChild> mEvent;
   nsString mMessageId;
   Maybe<nsTArray<uint8_t>> mData;
 
 public:
   SendPushEventRunnable(WorkerPrivate* aWorkerPrivate,
-                        KeepAliveToken* aKeepAliveToken,
+                        ServiceWorkerEventChild* aEvent,
                         const nsAString& aMessageId,
-                        const Maybe<nsTArray<uint8_t>>& aData,
-                        nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> aRegistration)
-      : ExtendableFunctionalEventWorkerRunnable(
-          aWorkerPrivate, aKeepAliveToken, aRegistration)
+                        const Maybe<nsTArray<uint8_t>>& aData)
+      : ExtendableEventWorkerRunnable(aWorkerPrivate)
+      , mEvent(aEvent)
       , mMessageId(aMessageId)
       , mData(aData)
   {
@@ -738,6 +755,7 @@ public:
       const nsTArray<uint8_t>& bytes = mData.ref();
       JSObject* data = Uint8Array::Create(aCx, bytes.Length(), bytes.Elements());
       if (!data) {
+        DoneWithError();
         errorReporter->Report();
         return false;
       }
@@ -766,6 +784,18 @@ public:
     }
 
     return true;
+  }
+
+  void
+  Done(bool aSuccess)
+  {
+    Done();
+  }
+
+  void
+  DoneWithErrorCode(uint16_t aReason)
+  {
+
   }
 };
 
@@ -804,6 +834,12 @@ public:
                                          event, nullptr);
 
     return true;
+  }
+
+  void
+  Done(bool aSuccess)
+  {
+
   }
 };
 

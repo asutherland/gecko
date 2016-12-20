@@ -34,7 +34,6 @@ namespace dom {
  * before dispatching an actual event.
  */
 struct ServiceWorkerEvaluateScriptEventArgs {
-
 };
 
 /**
@@ -44,7 +43,8 @@ struct ServiceWorkerEvaluateScriptEventArgs {
  * the codebase.
  */
 struct ServiceWorkerLifeCycleEventArgs {
-  nsString messageId;
+  // "install" or "activate"
+  nsString eventName;
 };
 
 /**
@@ -61,8 +61,45 @@ struct ServiceWorkerPostMessageEventArgs {
   ClonedMessageData messageData;
 };
 
-struct ServiceWorkerPushEventArgs {
+// It's semantically significant whether there is push data or not.  This can
+// be replaced with an OptionalUint8Array or the like if one comes into
+// existence.
+union MaybePushData {
+  uint8_t[];
+  void_t;
+}
 
+struct ServiceWorkerPushEventArgs {
+  // For Web Push messages this is the opaque identifier the server generated
+  // for the message that is used to derive the URI reported to the pusher so
+  // they can check on delivery status.  (The Mozilla autopush server id is
+  // an encrypted structured string at the time of this writing.)  This is used
+  // to report delivery errors to the push service.  It is sent to the content
+  // process exclusively for ease of debugging and error reporting; the parent
+  // needs to have it around to report failure if the content process dies so
+  // the value is not sent back in the result.
+  //
+  // For Simple Push (dead) this was the version.
+  nsString messageId;
+  MaybePushData data;
+};
+
+struct ServiceWorkerPushSubscriptionChangeEventArgs {
+};
+
+struct ServiceWorkerNotificationEventArgs {
+  //
+  nsString eventName;
+  nsString id;
+  nsString title;
+  nsString dir;
+  nsString lang;
+  nsString body;
+  nsString tag;
+  nsString icon;
+  nsString data;
+  nsString behavior;
+  nsString scope;
 };
 
 union ServiceWorkerEventArgs {
@@ -70,6 +107,9 @@ union ServiceWorkerEventArgs {
   ServiceWorkerLifeCycleEventArgs;
   ServiceWorkerFetchEventArgs;
   ServiceWorkerPostMessageEventArgs;
+  ServiceWorkerPushEventArgs;
+  ServiceWorkerPushSubscriptionChangeEventArgs;
+  ServiceWorkerNotificationEventArgs;
 };
 
 struct ServiceWorkerEvaluateScriptEventResult {
@@ -96,11 +136,23 @@ struct ServiceWorkerFetchEventResult {
 struct ServiceWorkerPostMessageEventResult {
 };
 
+struct ServiceWorkerPushEventResult {
+};
+
+struct ServiceWorkerPushSubscriptionChangeEventResult {
+};
+
+struct ServiceWorkerNotificationEventResult {
+};
+
 union ServiceWorkerEventResult {
   ServiceWorkerEvaluateScriptEventResult;
   ServiceWorkerLifeCycleEventResult;
   ServiceWorkerFetchEventResult;
   ServiceWorkerPostMessageEventResult;
+  ServiceWorkerPushEventResult;
+  ServiceWorkerPushSubscriptionChangeEventResult;
+  ServiceWorkerNotificationEventResult;
 };
 
 } // namespace dom

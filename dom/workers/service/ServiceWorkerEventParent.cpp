@@ -51,18 +51,43 @@ ServiceWorkerEventParent::Recv__delete__(const ServiceWorkerEventResult& aResult
         (mEventType == ServiceWorkerEventArgs::TServiceWorkerFetchEventArgs &&
          aResult.type() == ServiceWorkerEventResult::TServiceWorkerFetchEventResult) ||
         (mEventType == ServiceWorkerEventArgs::TServiceWorkerPostMessageEventArgs &&
-         aResult.type() == ServiceWorkerEventResult::TServiceWorkerFetchEventResult))) {
+         aResult.type() == ServiceWorkerEventResult::TServiceWorkerPostMessageEventResult) ||
+        (mEventType == ServiceWorkerEventArgs::TServiceWorkerPushEventArgs &&
+         aResult.type() == ServiceWorkerEventResult::TServiceWorkerPushEventResult) ||
+        (mEventType == ServiceWorkerEventArgs::TServiceWorkerPushSubscriptionChangeEventArgs &&
+         aResult.type() == ServiceWorkerEventResult::TServiceWorkerPushSubscriptionChangeEventResult) ||
+        (mEventType == ServiceWorkerEventArgs::TServiceWorkerNotificationEventArgs &&
+         aResult.type() == ServiceWorkerEventResult::TServiceWorkerNotificationEventResult))) {
     MOZ_CRASH("ServiceWorkerEventResult type mismatch.");
   }
 
-  // LifeCycleEventCallbacks are main-thread runnables and so we can
-  // synchronously invoke them as we are defined to be on the main thread.
+  switch (mEventType) {
+    case ServiceWorkerEventArgs::TServiceWorkerEvaluateScriptEventArgs:
+      DoneEvaluateScript(aResult.ServiceWorkerEvaluateScriptEventResult());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerLifeCycleEventArgs:
+      DoneLifeCycle(aResult.ServiceWorkerLifeCycleEventResult());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerFetchEventArgs:
+      DoneFetchEvent(aResult.ServiceWorkerFetchEventResult());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerPostMessageEventArgs:
+      DonePostMessage(aResult.ServiceWorkerPostMessageEventResult());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerPushEventArgs:
+      DonePush(aResult.ServiceWorkerPushEventResult());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerPushSubscriptionChangeEventArgs:
+      DonePushSubscriptionChange(aResult.ServiceWorkerPushSubscriptionChangeEventResult());
+      break;
+    case ServiceWorkerEventArgs::TServiceWorkerNotificationEventArgs:
+      DoneNotification(aResult.ServiceWorkerNotificationEventResult());
+      break;
+  }
+
   if (aResult.type() == ServiceWorkerEventResult::TServiceWorkerEvaluateScriptEventResult) {
-    mCallback->SetResult(aResult.ServiceWorkerEvaluateScriptEventResult().result);
-    Unused << mCallback->Run();
-    mCallback = nullptr;
   } else if (aResult.type() == ServiceWorkerEventResult::TServiceWorkerLifeCycleEventResult) {
-    mCallback->SetResult(aResult.ServiceWorkerLifeCycleEventResult().result);
+    mCallback->SetResult(.result);
     Unused << mCallback->Run();
     mCallback = nullptr;
   } else {
@@ -73,6 +98,33 @@ ServiceWorkerEventParent::Recv__delete__(const ServiceWorkerEventResult& aResult
 void
 ServiceWorkerEventParent::ActorDestroy(ActorDestroyReason aReason)
 {
+  // If we are being destroyed for any reason other than explicit deletion, then
+  // explicitly treat this as a failure.
+  if (aReason != Deletion) {
+    switch (mEventType) {
+      case ServiceWorkerEventArgs::TServiceWorkerEvaluateScriptEventArgs:
+        DoneEvaluateScript(ServiceWorkerEvaluateScriptEventResult(false));
+        break;
+      case ServiceWorkerEventArgs::TServiceWorkerLifeCycleEventArgs:
+        DoneLifeCycle(ServiceWorkerLifeCycleEventResult(false));
+        break;
+      case ServiceWorkerEventArgs::TServiceWorkerFetchEventArgs:
+        DoneFetchEvent(ServiceWorkerFetchEventResult());
+        break;
+      case ServiceWorkerEventArgs::TServiceWorkerPostMessageEventArgs:
+        DonePostMessage(ServiceWorkerPostMessageEventResult());
+        break;
+      case ServiceWorkerEventArgs::TServiceWorkerPushEventArgs:
+        DonePush(ServiceWorkerPushEventResult());
+        break;
+      case ServiceWorkerEventArgs::TServiceWorkerPushSubscriptionChangeEventArgs:
+        DonePushSubscriptionChange(ServiceWorkerPushSubscriptionChangeEventResult());
+        break;
+      case ServiceWorkerEventArgs::TServiceWorkerNotificationEventArgs:
+        DoneNotification(ServiceWorkerNotificationEventResult());
+        break;
+    }
+  }
   // If we still have a callback, then call it notifying failure.
   if (mCallback) {
     mCallback->SetResult(false);
@@ -82,6 +134,26 @@ ServiceWorkerEventParent::ActorDestroy(ActorDestroyReason aReason)
 
   mOwner->ReleaseToken();
   mOwner = nullptr;
+}
+
+void
+DoneEvaluateScript(const ServiceWorkerEvaluateScriptEventResult& aResult)
+{
+  // LifeCycleEventCallbacks are main-thread runnables and so we can
+  // synchronously invoke them as we are defined to be on the main thread.
+  mCallback->SetResult(aResult.result());
+  Unused << mCallback->Run();
+  mCallback = nullptr;
+}
+
+void
+DoneLifeCycle(const ServiceWorkerLifeCycleEventResult& aResult)
+{
+  // LifeCycleEventCallbacks are main-thread runnables and so we can
+  // synchronously invoke them as we are defined to be on the main thread.
+  mCallback->SetResult(aResult.result());
+  Unused << mCallback->Run();
+  mCallback = nullptr;
 }
 
 END_WORKERS_NAMESPACE

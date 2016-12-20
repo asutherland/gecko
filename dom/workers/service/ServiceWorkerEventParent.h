@@ -44,11 +44,35 @@ private:
   virtual bool
   RecvFetchEventRespondWith(const IPCInternalResponse& aResponse) override;
 
+  // Calls out to the relevant per-event-type Done* method to avoid a horrible
+  // if-cascade with many ridiculously verbose types.
   virtual bool
   Recv__delete__(const ServiceWorkerEventResult& aResult) override;
 
+  // Releases the ServiceWorkerPrivate token and performs any failsafe
   virtual void
   ActorDestroy(ActorDestroyReason aReason) override;
+
+  void
+  DoneEvaluateScript(const ServiceWorkerEvaluateScriptEventResult& aResult);
+
+  void
+  DoneLifeCycle(const ServiceWorkerLifeCycleEventResult& aResult);
+
+  void
+  DoneFetchEvent(const ServiceWorkerFetchEventResult& aResult);
+
+  void
+  DonePostMessage(const ServiceWorkerPostMessageEventResult& aResult);
+
+  void
+  DonePush(const ServiceWorkerPushEventResult& aResult);
+
+  void
+  DonePushSubscriptionChange(const ServiceWorkerPushSubscriptionChangeEventResult& aResult);
+
+  void
+  DoneNotification(const ServiceWorkerNotificationEventResult& aResult);
 
   nsRefPtr<ServiceWorkerPrivate> mOwner;
   // At most one of mCallback, mInterceptedChannel will be non-null depending on

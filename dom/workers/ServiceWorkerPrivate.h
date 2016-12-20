@@ -80,6 +80,13 @@ public:
 
   explicit ServiceWorkerPrivate(ServiceWorkerInfo* aInfo);
 
+  // TESTING STOPGAP:
+  // This API continues to assume that the sender exists in the same process.
+  // This works for testing where we require the pages to live in the parent
+  // process, but the true fix depends on
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1293277 having
+  // Serviceworker.postMessage be capable of remoting the payload using
+  // DOMTypes.ipdlh's ClonedMessageData representation.
   nsresult
   SendMessageEvent(JSContext* aCx, JS::Handle<JS::Value> aMessage,
                    const Optional<Sequence<JS::Value>>& aTransferable,
