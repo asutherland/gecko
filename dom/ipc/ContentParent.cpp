@@ -62,12 +62,9 @@
 #include "mozilla/dom/FlyWebPublishedServerIPC.h"
 #include "mozilla/dom/quota/QuotaManagerService.h"
 #include "mozilla/dom/time/DateCacheCleaner.h"
-<<<<<<< HEAD
 #include "mozilla/dom/URLClassifierParent.h"
 #include "mozilla/dom/ipc/BlobParent.h"
-=======
 #include "mozilla/dom/workers/service/ServiceWorkerInstanceGlue.h"
->>>>>>> 0ab4cfc... checkpoint base infra
 #include "mozilla/embedding/printingui/PrintingParent.h"
 #include "mozilla/gfx/gfxVars.h"
 #include "mozilla/gfx/GPUProcessManager.h"
@@ -690,46 +687,15 @@ ContentParent::GetNewOrUsedBrowserProcess(const nsAString& aRemoteType,
     } while (currIdx != startIdx);
   }
 
-<<<<<<< HEAD
   RefPtr<ContentParent> p = new ContentParent(aOpener, contentProcessType);
-=======
-  RefPtr<ContentParent> p = ProvideFreshContentParent(aForBrowserElement,
-                                                      aPriority, aOpener);
-  sNonAppContentParents->AppendElement(p);
-  return p.forget();
-}
-
-/*static*/ already_AddRefed<ContentParent>
-ProvideFreshContentParent(bool aForBrowserElement,
-                          ProcessPriority aPriority,
-                          ContentParent* aOpener)
-{
-  // Try to take and transform the preallocated process into browser.
-  RefPtr<ContentParent> p = PreallocatedProcessManager::Take();
-  if (p) {
-    p->TransformPreallocatedIntoBrowser(aOpener);
-  } else {
-    // Failed in using the preallocated process: fork from the chrome process.
-    p = new ContentParent(/* app = */ nullptr,
-                          aOpener,
-                          aForBrowserElement,
-                           /* isForPreallocated = */ false);
-
-    if (!p->LaunchSubprocess(aPriority)) {
-      return nullptr;
-    }
->>>>>>> 0ab4cfc... checkpoint base infra
 
   if (!p->LaunchSubprocess(aPriority)) {
     return nullptr;
   }
 
-<<<<<<< HEAD
   p->Init();
 
   contentParents->AppendElement(p);
-=======
->>>>>>> 0ab4cfc... checkpoint base infra
   return p.forget();
 }
 
@@ -2916,8 +2882,6 @@ ContentParent::DeallocPTestShellParent(PTestShellParent* shell)
   return true;
 }
 
-<<<<<<< HEAD
-=======
 PServiceWorkerInstanceParent*
 AllocPServiceWorkerInstanceParent(const ServiceWorkerInstanceConfig& aConfig)
 {
@@ -2930,33 +2894,6 @@ DeallocPServiceWorkerInstanceParent(PServiceWorkerInstanceParent* aActor)
   return DeallocServiceWorkerInstanceParent(aActor);
 }
 
-PMobileConnectionParent*
-ContentParent::AllocPMobileConnectionParent(const uint32_t& aClientId)
-{
-#ifdef MOZ_B2G_RIL
-  RefPtr<MobileConnectionParent> parent = new MobileConnectionParent(aClientId);
-  // We release this ref in DeallocPMobileConnectionParent().
-  parent->AddRef();
-
-  return parent;
-#else
-  MOZ_CRASH("No support for mobileconnection on this platform!");
-#endif
-}
-
-bool
-ContentParent::DeallocPMobileConnectionParent(PMobileConnectionParent* aActor)
-{
-#ifdef MOZ_B2G_RIL
-  // MobileConnectionParent is refcounted, must not be freed manually.
-  static_cast<MobileConnectionParent*>(aActor)->Release();
-  return true;
-#else
-  MOZ_CRASH("No support for mobileconnection on this platform!");
-#endif
-}
-
->>>>>>> 0ab4cfc... checkpoint base infra
 PNeckoParent*
 ContentParent::AllocPNeckoParent()
 {
