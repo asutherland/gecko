@@ -70,7 +70,8 @@ class ServiceWorkerPrivate final : public nsIObserver
   friend class KeepAliveToken;
   // So it can notify us when it's dying and so it can see our mInfo.
   friend class ServiceWorkerInstanceParent;
-  // So it can act like a KeepAliveToken;
+  // So it can act like a KeepAliveToken and trigger functional event update
+  // checks.
   friend class ServiceWorkerEventParent;
 
 public:
@@ -207,12 +208,26 @@ private:
   void
   ReleaseToken();
 
+  // Used by ServiceWorkerEventParent to cause a updater timer check as part of
+  // the "Handle Functional Event" algorithm.
+  void
+  FunctionalEventUpdateCheck();
+
   // Ensure mServiceWorkerInstance is valid and capable of sending messages,
   // returning failure if not.  Renews the idle keepalive token as a side
   // effect.
   nsresult
   SpawnWorkerIfNeeded(WakeUpReason aWhy);
 
+
+  nsresult
+  SendEventCommon(ServiceWorkerEventArgs& args,
+                  LifeCycleEventCallback* aCallback
+                  nsIInterceptedChannel* aIntercepted);
+
+  nsresult
+  SendFunctionalEvent(ServiceWorkerEventArgs& args,
+                      ServiceWorkerRegistrationInfo* aRegistration = nullptr);
 
   // Synchronously-invoked notification from
   // ServiceWorkerInstanceParent::ActorDestroy that its instance is going away

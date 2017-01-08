@@ -35,7 +35,10 @@ public:
    */
   explicit ServiceWorkerEventParent(ServiceWorkerPrivate* aOwner,
                                     ServiceWorkerEventArgs::Type aType,
-                                    LifeCycleEventCallback* aCallback,
+                                    LifeCycleEventCallback* aCallback);
+
+  explicit ServiceWorkerEventParent(ServiceWorkerPrivate* aOwner,
+                                    ServiceWorkerEventArgs::Type aType,
                                     nsIInterceptedChannel* aIntercepted);
   virtual ~ServiceWorkerEventParent();
 
@@ -49,7 +52,8 @@ private:
   virtual bool
   Recv__delete__(const ServiceWorkerEventResult& aResult) override;
 
-  // Releases the ServiceWorkerPrivate token and performs any failsafe
+  // For any reason other than deletion, treat this as a failure.  Either way,
+  // release the notional ServiceWorkerPrivate keepalive token.
   virtual void
   ActorDestroy(ActorDestroyReason aReason) override;
 
@@ -73,6 +77,10 @@ private:
 
   void
   DoneNotification(const ServiceWorkerNotificationEventResult& aResult);
+
+  // Post-functional-event time-check.
+  void
+  CommonDoneFunctionalEvent();
 
   nsRefPtr<ServiceWorkerPrivate> mOwner;
   // At most one of mCallback, mInterceptedChannel will be non-null depending on

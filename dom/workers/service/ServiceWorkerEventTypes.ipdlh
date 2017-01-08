@@ -68,7 +68,7 @@ struct ServiceWorkerPostMessageEventArgs {
 union MaybePushData {
   uint8_t[];
   void_t;
-}
+};
 
 struct ServiceWorkerPushEventArgs {
   // For Web Push messages this is the opaque identifier the server generated
@@ -137,9 +137,24 @@ struct ServiceWorkerFetchEventResult {
 struct ServiceWorkerPostMessageEventResult {
 };
 
+/**
+ * Push events only reports errors.  Specifically:
+ * - DELIVERY_INTERNAL_ERROR for unexpected failures like failure to allocate
+ *   the `data` Uint8Array or create the PushEvent.
+ * - DELIVERY_UNCAUGHT_EXCEPTION if the synchronous event dispatch NS_FAILED.
+ * - DELIVERY_UNHANDLED_REJECTION if any of the waitUntil() promises were
+ *   rejected.
+ *
+ * The ServiceWorkerEventChild decides on the nsIPushErrorReporter uint16_t
+ * error code to report.  The ServiceWorkerEventParent reports it if non-zero.
+ */
 struct ServiceWorkerPushEventResult {
+  uint16_t reason;
 };
 
+/**
+ * Push subscription events don't report anything.
+ */
 struct ServiceWorkerPushSubscriptionChangeEventResult {
 };
 

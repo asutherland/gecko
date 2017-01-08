@@ -131,7 +131,8 @@ ServiceWorkerInstanceSpawner::Init()
     MOZ_ASSERT(NS_SUCCEEDED(rv));
   }
 
-  mDedicatedServiceWorkerProcess = ContentParent::ProvideFreshContentParent();
+  mDedicatedServiceWorkerProcess = ContentParent::GetNewOrUsedBrowserProcess(
+    SERVICE_WORKER_REMOTE_TYPE);
 }
 
 ServiceWorkerInstanceParent*

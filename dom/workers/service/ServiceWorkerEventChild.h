@@ -16,7 +16,7 @@ namespace workers {
 /**
  * Home to the runnables/logic for servicing the events; our owning
  * ServiceWorkerInstanceChild owns the WorkerPrivate.  We are similarly
- * reference counted like it because of all the runnables involved in the use
+ * reference-counted like it because of all the runnables involved in the use
  * of workers.
  */
 class ServiceWorkerEventChild final : public PServiceWorkerEventChild
@@ -80,7 +80,7 @@ public:
   DoneFetchEvent();
 
   void
-  DoneFetchEvent();
+  DonePostMessage();
 };
 
 } // namespace workers

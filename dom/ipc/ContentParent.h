@@ -42,6 +42,10 @@
 // This must start with the DEFAULT_REMOTE_TYPE above.
 #define LARGE_ALLOCATION_REMOTE_TYPE "webLargeAllocation"
 
+// Dedicated Service Worker process that exists for main-thread contention
+// reasons.  The plan is to move these to use the same "web" pool when possible.
+#define SERVICE_WORKER_REMOTE_TYPE "serviceWorker"
+
 class nsConsoleService;
 class nsICycleCollectorLogSink;
 class nsIDumpGCAndCCLogsCallback;

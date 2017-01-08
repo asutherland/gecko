@@ -152,11 +152,11 @@ ServiceWorkerPrivate::SendMessageEvent(JSContext* aCx,
 
   // serialize to IPC representation including transferables.
   ServiceWorkerEventArgs args(ServiceWorkerPostMessageEventArgs());
-  ClonedMessageData& messageData = args.ServiceWorkerPostMessageEventArgs().messageData();
-  HackReusableClonedMessageBuilder hack;
-  if (!hack.BuildMessageDataForParent(mServiceWorkerInstance->ContentParent(),
-                                      holder,
-                                      messageData)) {
+  ClonedMessageData& messageData =
+    args.ServiceWorkerPostMessageEventArgs().messageData();
+
+  if (!holder.BuildClonedMessageDataForParent(
+        mServiceWorkerInstance->ContentParent(), messageData)) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -165,48 +165,27 @@ ServiceWorkerPrivate::SendMessageEvent(JSContext* aCx,
   return SendEventCommon(args, nullptr);
 }
 
-namespace {
-
-class RegistrationUpdateRunnable : public Runnable
-{
-  nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> mRegistration;
-  const bool mNeedTimeCheck;
-
-public:
-  RegistrationUpdateRunnable(nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration,
-                             bool aNeedTimeCheck)
-    : mRegistration(aRegistration)
-    , mNeedTimeCheck(aNeedTimeCheck)
-  {
-  }
-
-  NS_IMETHOD
-  Run() override
-  {
-    if (mNeedTimeCheck) {
-      mRegistration->MaybeScheduleTimeCheckAndUpdate();
-    } else {
-      mRegistration->MaybeScheduleUpdate();
-    }
-    return NS_OK;
-  }
-};
-
-/// XXX ExtendableFunctionalEventWorkerRunnable needs hookup.
-
-} // anonymous namespace
-
 nsresult
 ServiceWorkerPrivate::SendEventCommon(ServiceWorkerEventArgs& args,
-                                      LifeCycleEventCallback *aCallback)
+                                      LifeCycleEventCallback* aCallback)
 {
   // Caller should have already called and result-checked SpawnWorkerIfNeeded.
   MOZ_ASSERT(mServiceWorkerInstance);
 
-  PServiceWorkerEventParent* actor = new ServiceWorkerEventParent(aCallback);
+  PServiceWorkerEventParent* actor = new ServiceWorkerEventParent(
+    this, args.type(), aCallback, nullptr);
   mServiceWorkerInstance->SendPServiceWorkerEventConstructor(actor, args);
 
   return NS_OK;
+}
+
+nsresult
+ServiceWorkerPrivate::SendFunctionalEvent(
+  ServiceWorkerEventArgs& args,
+  ServiceWorkerRegistrationInfo* aRegistration,
+  nsIInterceptedChannel* aIntercepted)
+{
+  return SendEventCommon(args, nullptr, nullptr);
 }
 
 nsresult
@@ -309,9 +288,10 @@ ServiceWorkerPrivate::SendPushEvent(const nsAString& aMessageId,
     return rv;
   }
 
-  ServiceWorkerLifeCycleEventArgs lifeCycleArgs(aEventType);
-  ServiceWorkerEventArgs args(lifeCycleArgs);
-  return SendEventCommon(args, aCallback);
+  MaybePushData maybePushData(aData ? *aData : void_t());
+  ServiceWorkerPushEventArgs pushEventArgs(aMessageId, maybePushData);
+  ServiceWorkerEventArgs args(pushEventArgs);
+  return SendFunctionalEvent(args);
 
   nsresult rv = SpawnWorkerIfNeeded(, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -543,7 +523,7 @@ ServiceWorkerPrivate::TerminateWorker()
 
   mIdleWorkerTimer->Cancel();
   mIdleKeepAliveToken = nullptr;
-  if (mWorkerPrivate) {
+  if (mServiceWorkerInstance) {
     if (Preferences::GetBool("dom.serviceWorkers.testing.enabled")) {
       nsCOMPtr<nsIObserverService> os = services::GetObserverService();
       if (os) {
@@ -551,8 +531,10 @@ ServiceWorkerPrivate::TerminateWorker()
       }
     }
 
-    Unused << NS_WARN_IF(!mWorkerPrivate->Terminate());
-    mWorkerPrivate = nullptr;
+    mServiceWorkerInstance->Terminate();
+    mServiceWorkerInstance = nullptr;
+
+    /// XXX mSupportsArray life-cycle needs determining
     mSupportsArray.Clear();
 
     // Any pending events are never going to fire on this worker.  Cancel
@@ -775,6 +757,22 @@ ServiceWorkerPrivate::CreateEventKeepAliveToken()
   MOZ_ASSERT(mIdleKeepAliveToken);
   RefPtr<KeepAliveToken> ref = new KeepAliveToken(this);
   return ref.forget();
+}
+
+void
+ServiceWorkerPrivate::FunctionalEventUpdateCheck()
+{
+  // If our worker is mooted, triggering an update check is no longer our
+  // concern.
+  if (!mInfo) {
+    return;
+  }
+
+  RefPtr<ServiceWorkerRegistrationInfo> registration =
+    swm->GetRegistration(mInfo->GetPrincipal(), mInfo->Scope());
+  if (registration) {
+    registration->MaybeScheduleTimeCheckAndUpdate();
+  }
 }
 
 void

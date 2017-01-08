@@ -137,7 +137,8 @@ ServiceWorkerEventParent::ActorDestroy(ActorDestroyReason aReason)
 }
 
 void
-DoneEvaluateScript(const ServiceWorkerEvaluateScriptEventResult& aResult)
+ServiceWorkerEventParent::DoneEvaluateScript(
+  const ServiceWorkerEvaluateScriptEventResult& aResult)
 {
   // LifeCycleEventCallbacks are main-thread runnables and so we can
   // synchronously invoke them as we are defined to be on the main thread.
@@ -147,7 +148,8 @@ DoneEvaluateScript(const ServiceWorkerEvaluateScriptEventResult& aResult)
 }
 
 void
-DoneLifeCycle(const ServiceWorkerLifeCycleEventResult& aResult)
+ServiceWorkerEventParent::DoneLifeCycle(
+  const ServiceWorkerLifeCycleEventResult& aResult)
 {
   // LifeCycleEventCallbacks are main-thread runnables and so we can
   // synchronously invoke them as we are defined to be on the main thread.
@@ -155,5 +157,47 @@ DoneLifeCycle(const ServiceWorkerLifeCycleEventResult& aResult)
   Unused << mCallback->Run();
   mCallback = nullptr;
 }
+
+void
+ServiceWorkerEventParent::DoneFetchEvent(
+  ServiceWorkerFetchEventResult& aResult)
+{
+  CommonDoneFunctionalEvent();
+}
+
+void
+ServiceWorkerEventParent::DonePostMessage(
+  ServiceWorkerPostMessageEventResult& aResult)
+{
+  // Not a functional event.
+}
+
+void
+ServiceWorkerEventParent::DonePush(
+  ServiceWorkerPushEventResult& aResult)
+{
+  CommonDoneFunctionalEvent();
+}
+
+void
+ServiceWorkerEventParent::DonePushSubscriptionChange(
+  ServiceWorkerPushSubscriptionChangeEventResult& aResult)
+{
+  CommonDoneFunctionalEvent();
+}
+
+void
+ServiceWorkerEventParent::DoneNotification(
+  ServiceWorkerNotificationEventResult& aResult)
+{
+  CommonDoneFunctionalEvent();
+}
+
+void
+ServiceWorkerEventParent::CommonDoneFunctionalEvent()
+{
+  mOwner->FunctionalEventUpdateCheck();
+}
+
 
 END_WORKERS_NAMESPACE
