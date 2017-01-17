@@ -162,6 +162,8 @@ ServiceWorkerPrivate::SendMessageEvent(JSContext* aCx,
 
   // TODO clients: The ClientInfo needs to be serialized.
 
+  // (Not a functional event; we do not need to wait for "activated" or to
+  // schedule an update check afterwards.)
   return SendEventCommon(args, nullptr);
 }
 

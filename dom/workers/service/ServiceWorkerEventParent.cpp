@@ -12,15 +12,22 @@ BEGIN_WORKERS_NAMESPACE
 ServiceWorkerEventParent::ServiceWorkerEventParent(
   ServiceWorkerPrivate* aOwner,
   ServiceWorkerEventArgs::Type aType,
-  LifeCycleEventCallback* aCallback,
-  nsIInterceptedChannel* aIntercepted)
+  EventStorage&& aStorage)
   : mOwner(aOwner)
-  , mCallback(aCallback)
-  , mInterceptedChannel(aIntercepted)
   , mType(aType)
+  , mStorage(aStorage)
 {
   MOZ_COUNT_CTOR(ServiceWorkerEventParent);
   mOwner->AddToken();
+}
+
+/* static*/ ServiceWorkerEventParent*
+ServiceWorkerEventParent::CreateEvaluateScript(ServiceWorkerPrivate* aOwner)
+{
+  return new ServiceWorkerEventParent(
+    aOwner,
+    ServiceWorkerEventArgs::TServiceWorkerEvaluateScriptEventArgs,
+    EvaluateScriptStorage {});
 }
 
 bool
@@ -176,6 +183,16 @@ void
 ServiceWorkerEventParent::DonePush(
   ServiceWorkerPushEventResult& aResult)
 {
+  uint16_t reason = aResult.reason();
+  if (reason) {
+    nsCOMPtr<nsIPushErrorReporter> reporter =
+      do_GetService("@mozilla.org/push/Service;1");
+    if (reporter) {
+      nsresult rv = reporter->ReportDeliveryError(mMessageId,reason);
+      Unused << NS_WARN_IF(NS_FAILED(rv));
+    }
+  }
+
   CommonDoneFunctionalEvent();
 }
 

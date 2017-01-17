@@ -17,21 +17,8 @@
 namespace mozilla {
 namespace dom {
 
-// Subclassed to have consistent configuration passed to StructuredCloneHolder.
-class ServiceWorkerPostMessageCloneHolder final : public StructuredCloneHolder
-{
-public:
-  NS_INLINE_DECL_REFCOUNTING(ServiceWorkerPostMessageCloneHolder)
-
-  ServiceWorkerPostMessageCloneHolder()
-    : StructuredCloneHolder(CloningSupported, TransferringSupported,
-                            StructuredCloneScope::DifferentProcess)
-  {}
-
-private:
-  ~ServiceWorkerPostMessageCloneHolder()
-  {}
-};
+// This used to have a StructuredCloneHolder class that is now mooted.  If this
+// file doesn't grow some other denizen soon, nuke it.
 
 
 } // namespace dom

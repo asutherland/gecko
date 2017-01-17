@@ -15,6 +15,11 @@ namespace dom {
  * ExtendableEvents are deleted with the final result when they are no longer
  * extendable.  Non-extendable events are deleted after they dispatch.  Errors
  * other than the result of an event are reported via PServiceWorkerInstance.
+ *
+ * An explicit design decision was made to use a single actor for all event
+ * types using the unioned result types defined in
+ * ServiceWorkerEventTypes.ipdlh.  The driving concern was the amount of
+ * boilerplate required from having multiple actor types.
  */
 protocol PServiceWorkerEvent
 {
